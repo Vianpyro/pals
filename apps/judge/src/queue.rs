@@ -32,6 +32,13 @@ pub async fn finish(
         .await
 }
 
+pub async fn fail(connection: &mut PgConnection, job: Uuid) -> sqlx::Result<bool> {
+    sqlx::query_scalar("SELECT fail_job($1)")
+        .bind(job)
+        .fetch_one(connection)
+        .await
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

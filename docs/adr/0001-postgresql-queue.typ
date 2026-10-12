@@ -38,7 +38,9 @@ The queue is implemented in PostgreSQL. Judges pull jobs with `SELECT … FOR UP
     waiting --> running: claimed with SKIP LOCKED
     running --> done: verdict written with the pedagogical state
     running --> waiting: abandoned by a failed judge, reclaimed
+    running --> failed: cannot be judged (language pack, exercise, cases)
     done --> [*]
+    failed --> [*]
   ",
   document-context: true,
   width: 100%,
@@ -48,6 +50,7 @@ The queue is implemented in PostgreSQL. Judges pull jobs with `SELECT … FOR UP
 
 - The queue acts as the dispatcher: capacity is adjusted through the number of judges, without a load balancer.
 - A job and its verdict are written atomically with the pedagogical state.
+- A job the judge cannot judge (unsupported language pack, missing exercise, invalid cases) ends `failed` and is never reclaimed. An infrastructure failure (sandbox runtime) stops the judge instead, so a broken judge cannot fail the whole queue.
 - Judges need access to the database. Their privileges must be restricted to the queue tables (see the threat model).
 
 #validation(id: "V-0001")[

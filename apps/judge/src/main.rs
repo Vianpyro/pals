@@ -2,7 +2,7 @@
 
 use std::{env, error::Error, io, path::Path, time::Duration};
 
-use judge::{Job, Verdict, claim, finish, judge_cases, read_cases};
+use judge::{Case, Job, Verdict, claim, finish, judge_cases, read_cases};
 use sqlx::{Connection, PgConnection};
 use tokio::time;
 
@@ -34,21 +34,28 @@ async fn main() -> Result<(), Box<dyn Error>> {
     }
 }
 
-async fn judge(content: &Path, job: &Job) -> io::Result<Vec<Verdict>> {
-    if job.language_pack != "python" {
-        return Err(io::Error::new(
-            io::ErrorKind::Unsupported,
-            format!("language pack {}", job.language_pack),
-        ));
-    }
+fn prepare(content: &Path, job: &Job) -> io::Result<(&'static str, Vec<Case>)> {
+    let image = match job.language_pack.as_str() {
+        "python" => IMAGE,
+        _ => {
+            return Err(io::Error::new(
+                io::ErrorKind::Unsupported,
+                format!("language pack {}", job.language_pack),
+            ));
+        }
+    };
     let assessment = content
         .join("exercises")
         .join(&job.exercise)
         .join("assessment");
-    let cases = read_cases(&assessment)?;
+    Ok((image, read_cases(&assessment)?))
+}
+
+async fn judge(content: &Path, job: &Job) -> io::Result<Vec<Verdict>> {
+    let (image, cases) = prepare(content, job)?;
     let name = format!("judge-{}", job.id);
     let command = ["python3", "-c", &job.source];
-    judge_cases(&name, IMAGE, &command, &cases, TIMEOUT).await
+    judge_cases(&name, image, &command, &cases, TIMEOUT).await
 }
 
 #[cfg(test)]
