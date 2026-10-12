@@ -32,6 +32,13 @@ pub async fn finish(
         .await
 }
 
+pub async fn fail(connection: &mut PgConnection, job: Uuid) -> sqlx::Result<bool> {
+    sqlx::query_scalar("SELECT fail_job($1)")
+        .bind(job)
+        .fetch_one(connection)
+        .await
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -184,5 +191,39 @@ mod tests {
             .await
             .unwrap_err();
         assert_denied(&error);
+    }
+
+    async fn fail_as_judge(pool: &PgPool, job: Uuid) -> bool {
+        let mut transaction = begin_as(pool, AS_JUDGE).await;
+        let failed = fail(&mut transaction, job).await.unwrap();
+        transaction.commit().await.unwrap();
+        failed
+    }
+
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL"]
+    async fn claimed_job_fails_once(pool: PgPool) {
+        let job = enqueue(&pool).await;
+        claim_as_judge(&pool).await;
+        assert!(fail_as_judge(&pool, job).await);
+        assert!(!fail_as_judge(&pool, job).await);
+        assert_eq!(state_and_result(&pool, job).await, ("failed".into(), None));
+    }
+
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL"]
+    async fn waiting_job_cannot_fail(pool: PgPool) {
+        let job = enqueue(&pool).await;
+        assert!(!fail_as_judge(&pool, job).await);
+        assert_eq!(state_and_result(&pool, job).await, ("waiting".into(), None));
+    }
+
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL"]
+    async fn only_the_judge_can_fail(pool: PgPool) {
+        let job = enqueue(&pool).await;
+        claim_as_judge(&pool).await;
+        let mut transaction = begin_as(&pool, AS_API).await;
+        assert_denied(&fail(&mut transaction, job).await.unwrap_err());
     }
 }
