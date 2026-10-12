@@ -1,13 +1,39 @@
 //! Pulls jobs, runs the sandbox and writes the verdict.
 
-use std::{env, error::Error, io, path::Path, time::Duration};
+use std::{env, error::Error, io, path::Path, str::FromStr, time::Duration};
 
-use judge::{Case, Job, Verdict, claim, finish, judge_cases, read_cases};
+use judge::{Case, Job, Verdict, claim, fail, finish, judge_cases, read_cases};
 use sqlx::{Connection, PgConnection};
 use tokio::time;
 
+#[derive(Debug, Clone, Copy)]
+enum Pack {
+    Python,
+}
+
+impl FromStr for Pack {
+    type Err = io::Error;
+
+    fn from_str(name: &str) -> io::Result<Self> {
+        match name {
+            "python" => Ok(Self::Python),
+            _ => Err(io::Error::new(
+                io::ErrorKind::Unsupported,
+                format!("language pack {name}"),
+            )),
+        }
+    }
+}
+
+impl Pack {
+    fn image(self) -> &'static str {
+        match self {
+            Self::Python => "python:3.14-alpine",
+        }
+    }
+}
+
 // Python pack until packs are data (ADR-0013)
-const IMAGE: &str = "python:3.14-alpine";
 const TIMEOUT: Duration = Duration::from_secs(10);
 const POLL: Duration = Duration::from_secs(1);
 
@@ -23,39 +49,39 @@ async fn main() -> Result<(), Box<dyn Error>> {
             continue;
         };
 
-        match judge(content.as_ref(), &job).await {
-            Ok(verdicts) => {
-                if !finish(&mut connection, job.id, &verdicts).await? {
-                    eprintln!("judge: job {} was no longer running", job.id);
+        // Job cannot be judged: failed so it is never reclaimed
+        let (pack, cases) = match prepare(content.as_ref(), &job) {
+            Ok(prepared) => prepared,
+            Err(error) => {
+                eprintln!("judge: job {}: {error}", job.id);
+                if !fail(&mut connection, job.id).await? {
+                    eprintln!("judge: job {}: was no longer running", job.id);
                 }
+                continue;
             }
-            Err(error) => eprintln!("judge: job {}: {error}", job.id),
+        };
+
+        // A sandbox failure stops the judge rather than failing every job it claims
+        let verdicts = judge(&job, pack, &cases).await?;
+        if !finish(&mut connection, job.id, &verdicts).await? {
+            eprintln!("judge: job {} was no longer running", job.id);
         }
     }
 }
 
-fn prepare(content: &Path, job: &Job) -> io::Result<(&'static str, Vec<Case>)> {
-    let image = match job.language_pack.as_str() {
-        "python" => IMAGE,
-        _ => {
-            return Err(io::Error::new(
-                io::ErrorKind::Unsupported,
-                format!("language pack {}", job.language_pack),
-            ));
-        }
-    };
+fn prepare(content: &Path, job: &Job) -> io::Result<(Pack, Vec<Case>)> {
+    let pack = job.language_pack.parse()?;
     let assessment = content
         .join("exercises")
         .join(&job.exercise)
         .join("assessment");
-    Ok((image, read_cases(&assessment)?))
+    Ok((pack, read_cases(&assessment)?))
 }
 
-async fn judge(content: &Path, job: &Job) -> io::Result<Vec<Verdict>> {
-    let (image, cases) = prepare(content, job)?;
+async fn judge(job: &Job, pack: Pack, cases: &[Case]) -> io::Result<Vec<Verdict>> {
     let name = format!("judge-{}", job.id);
     let command = ["python3", "-c", &job.source];
-    judge_cases(&name, image, &command, &cases, TIMEOUT).await
+    judge_cases(&name, pack.image(), &command, cases, TIMEOUT).await
 }
 
 #[cfg(test)]
@@ -71,28 +97,36 @@ mod tests {
         ))
     }
 
-    fn job(language_pack: &str, source: &str) -> Job {
+    fn job(language_pack: &str, exercise: &str, source: &str) -> Job {
         Job {
             id: Uuid::default(),
             contract: 1,
             course: "log791".to_string(),
-            exercise: "sum".into(),
+            exercise: exercise.into(),
             language_pack: language_pack.into(),
             source: source.into(),
         }
     }
 
-    #[tokio::test]
-    async fn unknown_language_pack_is_unsupported() {
-        let result = judge(content(), &job("invalid", "")).await;
+    #[test]
+    fn unknown_language_pack_is_unsupported() {
+        let result = prepare(content(), &job("invalid", "sum", ""));
         assert_matches!(result, Err(error) if error.kind() == io::ErrorKind::Unsupported);
+    }
+
+    #[test]
+    fn unknown_exercise_is_not_found() {
+        let result = prepare(content(), &job("python", "missing", ""));
+        assert_matches!(result, Err(error) if error.kind() == io::ErrorKind::NotFound);
     }
 
     #[tokio::test]
     #[ignore = "needs Docker with runsc"]
     async fn reference_solution_passes_the_sum_exercise() {
         let sum = "import sys; print(sum(map(int, sys.stdin.read().split())))";
-        let verdicts = judge(content(), &job("python", sum)).await.unwrap();
+        let job = job("python", "sum", sum);
+        let (pack, cases) = prepare(content(), &job).unwrap();
+        let verdicts = judge(&job, pack, &cases).await.unwrap();
         assert_eq!(verdicts, [Verdict::Passed; 5]);
     }
 }
