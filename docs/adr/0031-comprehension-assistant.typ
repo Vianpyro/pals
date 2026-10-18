@@ -52,9 +52,10 @@ The constraints already in place:
     M-->>A: answer
     A->>A: code filter
     alt answer kept
-      A->>A: store answer and ledger row, one transaction
+      A->>A: store exchange and ledger row, one transaction
       A-->>B: answer, points spent on the item
     else filtered, failed or timed out
+      A->>A: store exchange, no ledger row
       A-->>B: fixed message, nothing charged
     end
   ",
@@ -64,7 +65,9 @@ The constraints already in place:
 
 *Capacity is bounded and the assistant may be missing.* A student has at most one question in flight. The API limits concurrent requests to the endpoint and gives up after a timeout. When the endpoint is down, the button says so, and the rest of the activity works as before. Exam capacity is never planned on the assistant.
 
-*Conversations are personal data.* They are kept with the submission and purged with the offering (#adr("0012")). The instructors and TAs of the offering can read them; students are told so next to the button. The model answers in the interface language (#adr("0011")).
+*Every exchange is stored for review.* Each question gets one row in #ext("postgresql")[PostgreSQL], filtered, failed and timed-out ones included: the request exactly as sent to the model (student code at that moment included), the model's raw answer, what the student was shown, the outcome (shown, filtered, failed, timed out), the versions of the prompt and of the filter, the model's name as reported by the endpoint, and the cost charged. Rows are never updated. The instructors and TAs of the offering can review them per student, per item or per activity, next to the student's submissions, to check after the fact how the assistant was used and what it said. A raw answer stopped by the filter is shown to them, never to the student.
+
+*Conversations are personal data.* They are purged with the offering (#adr("0012")), like submissions. Students are told next to the button that their questions and the answers are kept and read by the teaching team. The model answers in the interface language (#adr("0011")).
 
 === Consequences
 
@@ -75,5 +78,5 @@ The constraints already in place:
 - Under #ext("seb")[Safe Exam Browser], the assistant is part of the platform's origin and needs no extra allowance.
 
 #validation(id: "V-0031")[
-  A test fails if the request builder can receive any field of the private part. A set of adversarial questions and statements asking for code, in French and English, yields no answer that reaches the student with code beyond the filter's threshold. A filtered, failed or timed-out question leaves no ledger row; an answered question leaves exactly one, even after a client retry. With the endpoint stopped, an exam is taken end to end. Under the exam load test, measure the 95#super[th] percentile of answer time with the concurrency limit in place.
+  A test fails if the request builder can receive any field of the private part. A set of adversarial questions and statements asking for code, in French and English, yields no answer that reaches the student with code beyond the filter's threshold. A filtered, failed or timed-out question leaves no ledger row; an answered question leaves exactly one, even after a client retry. Every question, whatever its outcome, leaves one stored exchange that an instructor of the offering can read and that no one outside the offering can. With the endpoint stopped, an exam is taken end to end. Under the exam load test, measure the 95#super[th] percentile of answer time with the concurrency limit in place.
 ]
