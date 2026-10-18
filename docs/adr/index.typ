@@ -40,6 +40,9 @@
   [#adr("0028", body: "0028")], [LaTeX statements], [Proposed],
   [#adr("0029", body: "0029")], [Importing existing course material], [Proposed],
   [#adr("0030", body: "0030")], [Run progress shown as a pipeline], [Proposed],
+  [#adr("0031", body: "0031")], [Comprehension assistant paid in points], [Proposed],
+  [#adr("0032", body: "0032")], [Find-and-fix exercises and author checkers], [Proposed],
+  [#adr("0033", body: "0033")], [Independent test cases and partial credit], [Proposed],
 )
 
 Relations declared in the status of each ADR: a solid arrow refines, a thick arrow supersedes, a dotted arrow applies, extends or feeds the ADR it points to. ADRs without a declared relation are not shown.
@@ -70,6 +73,9 @@ Relations declared in the status of each ADR: a solid arrow refines, a thick arr
     A0028[0028 LaTeX statements]
     A0029[0029 Content import]
     A0030[0030 Run pipeline view]
+    A0031[0031 Comprehension assistant]
+    A0032[0032 Find and fix]
+    A0033[0033 Independent test cases]
 
     A0006 ==> A0003
     A0010 --> A0001
@@ -108,6 +114,14 @@ Relations declared in the status of each ADR: a solid arrow refines, a thick arr
     A0030 --> A0001
     A0030 -.->|extends| A0008
     A0030 -.->|applies| A0014
+    A0031 -.->|applies| A0014
+    A0031 -.->|applies| A0023
+    A0032 -.->|extends| A0015
+    A0032 -.->|applies| A0014
+    A0032 -.->|applies| A0023
+    A0033 --> A0008
+    A0033 --> A0013
+    A0033 -.->|extends| A0015
   ",
   document-context: true,
   width: 100%,
@@ -143,3 +157,6 @@ Relations declared in the status of each ADR: a solid arrow refines, a thick arr
 #include "0028-latex-statements.typ"
 #include "0029-content-import.typ"
 #include "0030-run-pipeline-view.typ"
+#include "0031-comprehension-assistant.typ"
+#include "0032-find-and-fix-exercises.typ"
+#include "0033-independent-test-cases.typ"
