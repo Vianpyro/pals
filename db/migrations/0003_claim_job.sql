@@ -1,4 +1,5 @@
 -- Judge claims only through this function: no direct access to jobs (ADR-0001)
+-- Abandoned jobs are reclaimed first (ADR-0010)
 
 CREATE FUNCTION claim_job()
 RETURNS TABLE (
