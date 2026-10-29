@@ -200,6 +200,14 @@ mod tests {
         failed
     }
 
+    async fn expire(pool: &PgPool, job: Uuid) {
+        sqlx::query("UPDATE jobs SET enqueued_at = enqueued_at - interval '1 hour', claimed_at = claimed_at - interval '1 hour' WHERE id = $1")
+            .bind(job)
+            .execute(pool)
+            .await
+            .unwrap();
+    }
+
     #[sqlx::test(migrations = "../../db/migrations")]
     #[ignore = "needs PostgreSQL"]
     async fn claimed_job_fails_once(pool: PgPool) {
@@ -225,5 +233,48 @@ mod tests {
         claim_as_judge(&pool).await;
         let mut transaction = begin_as(&pool, AS_API).await;
         assert_denied(&fail(&mut transaction, job).await.unwrap_err());
+    }
+
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL"]
+    async fn running_job_within_its_lease_is_not_reclaimed(pool: PgPool) {
+        let job = enqueue(&pool).await;
+        assert_eq!(claim_as_judge(&pool).await, Some(job));
+        assert_eq!(claim_as_judge(&pool).await, None);
+        assert_eq!(state_and_result(&pool, job).await, ("running".into(), None));
+    }
+
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL"]
+    async fn abandoned_job_is_reclaimed_before_newer_jobs(pool: PgPool) {
+        let abandoned = enqueue(&pool).await;
+        claim_as_judge(&pool).await;
+        let newer = enqueue(&pool).await;
+        expire(&pool, abandoned).await;
+        assert_eq!(claim_as_judge(&pool).await, Some(abandoned));
+        assert_eq!(claim_as_judge(&pool).await, Some(newer));
+    }
+
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL"]
+    async fn job_abandoned_three_times_fails(pool: PgPool) {
+        let job = enqueue(&pool).await;
+        for _ in 0..3 {
+            assert_eq!(claim_as_judge(&pool).await, Some(job));
+            expire(&pool, job).await;
+        }
+        assert_eq!(claim_as_judge(&pool).await, None);
+        assert_eq!(state_and_result(&pool, job).await, ("failed".into(), None));
+    }
+
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL"]
+    async fn first_judge_can_still_finish_a_reclaimed_job(pool: PgPool) {
+        let job = enqueue(&pool).await;
+        claim_as_judge(&pool).await;
+        expire(&pool, job).await;
+        claim_as_judge(&pool).await;
+        assert!(finish_as_judge(&pool, job, &[Verdict::Passed]).await);
+        assert!(!finish_as_judge(&pool, job, &[Verdict::Passed]).await);
     }
 }

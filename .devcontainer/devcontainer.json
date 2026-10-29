@@ -9,7 +9,7 @@
     // Docker CE rather than Moby, which is not packaged for Debian trixie.
     "ghcr.io/devcontainers/features/docker-in-docker:4": { "moby": false },
     // Same version as rust-toolchain.toml, which rustup reads; otherwise a second toolchain is installed.
-    "ghcr.io/devcontainers/features/rust:1": { "version": "1.99.0" }
+    "ghcr.io/devcontainers/features/rust:1": { "version": "1.99.1" }
   },
   "forwardPorts": [8000, 8001, "ldap:17170"],
   "portsAttributes": {

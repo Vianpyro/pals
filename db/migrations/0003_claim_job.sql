@@ -11,7 +11,13 @@ RETURNS TABLE (
 )
 LANGUAGE sql SECURITY DEFINER SET search_path = pg_catalog, pg_temp
 BEGIN ATOMIC
-    UPDATE public.jobs SET state = 'running', claimed_at = now()
+    UPDATE public.jobs SET state = 'failed', finished_at = now()
+    WHERE jobs.state = 'running' AND jobs.claimed_at < now() - interval '2 minutes' AND jobs.claims >= 3;
+
+    UPDATE public.jobs SET state = 'waiting', claimed_at = NULL
+    WHERE jobs.state = 'running' AND jobs.claimed_at < now() - interval '2 minutes';
+
+    UPDATE public.jobs SET state = 'running', claimed_at = now(), claims = jobs.claims + 1
     WHERE jobs.id = (
         SELECT j.id FROM public.jobs j
         WHERE j.state = 'waiting'

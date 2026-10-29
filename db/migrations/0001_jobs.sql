@@ -20,6 +20,7 @@ CREATE TABLE jobs (
     state job_state NOT NULL DEFAULT 'waiting',
     enqueued_at timestamptz NOT NULL DEFAULT now(),
     claimed_at timestamptz,
+    claims integer NOT NULL DEFAULT 0 CHECK (claims >= 0),
     finished_at timestamptz,
     result jsonb,
 
@@ -31,3 +32,4 @@ CREATE TABLE jobs (
 );
 
 CREATE INDEX jobs_waiting_idx ON jobs (enqueued_at, id) WHERE state = 'waiting';
+CREATE INDEX jobs_running_idx ON jobs (claimed_at) WHERE state = 'running';
