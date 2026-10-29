@@ -1,0 +1,7 @@
+---
+- name: Judge hosts run submissions in gVisor
+  hosts: judge
+  become: true
+  roles:
+    - docker
+    - gvisor

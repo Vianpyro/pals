@@ -1,0 +1,3 @@
+---
+# Release date of runsc, a suite of the gVisor repository: updated by hand (ADR-0002)
+gvisor_release: "20261026"

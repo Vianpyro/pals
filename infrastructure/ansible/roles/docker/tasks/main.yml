@@ -1,0 +1,12 @@
+---
+- name: Install Docker from the Ubuntu archive
+  ansible.builtin.apt:
+    name: docker.io
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Start Docker at boot
+  ansible.builtin.service:
+    name: docker
+    state: started
+    enabled: true

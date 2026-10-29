@@ -1,0 +1,24 @@
+---
+- name: Install the deb822 support of Ansible
+  ansible.builtin.apt:
+    name: python3-debian
+
+- name: Add the gVisor repository
+  ansible.builtin.deb822_repository:
+    name: gvisor
+    uris: https://storage.googleapis.com/gvisor/releases
+    suites: "{{ gvisor_release }}"
+    components: main
+    signed_by: https://gvisor.dev/archive.key
+
+- name: Install runsc
+  ansible.builtin.apt:
+    name: runsc
+    update_cache: true
+
+- name: Register runsc with Docker
+  ansible.builtin.copy:
+    dest: /etc/docker/daemon.json
+    content: '{"runtimes": {"runsc": {"path": "/usr/bin/runsc"}}}'
+    mode: "0644"
+  notify: Restart Docker
