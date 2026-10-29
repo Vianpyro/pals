@@ -4,7 +4,7 @@ A platform where students write, run and submit code that is judged in an isolat
 
 ## Getting started
 
-The server code is a Cargo workspace in Rust 1.99.0 (ADR-0025), pinned by [`rust-toolchain.toml`](rust-toolchain.toml). Everything runs in the dev container: Rust, PostgreSQL, a local LDAP directory, Docker with gVisor, Typst and Ansible.
+The server code is a Cargo workspace in Rust 1.99.1 (ADR-0025), pinned by [`rust-toolchain.toml`](rust-toolchain.toml). Everything runs in the dev container: Rust, PostgreSQL, a local LDAP directory, Docker with gVisor, Typst and Ansible.
 
 1. Open the repository in VS Code and choose **Reopen in Container** (Docker required).
 2. Wait for the first build. It fetches the crates (`cargo fetch`), then `check.sh` prints one line per service; every line should read `ok`.

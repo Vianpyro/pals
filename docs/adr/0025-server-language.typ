@@ -53,7 +53,7 @@ The judge is also the only privileged process: it drives Docker, mounts the cont
 
 === Decision
 
-All server code is written in Rust, in one #ext("cargo")[Cargo] workspace pinned to Rust 1.99.0 by `rust-toolchain.toml`. `unsafe` code is forbidden in the whole workspace.
+All server code is written in Rust, in one #ext("cargo")[Cargo] workspace pinned to Rust 1.99.1 by `rust-toolchain.toml`. `unsafe` code is forbidden in the whole workspace.
 
 - *API*: #ext("axum")[axum] on #ext("tokio")[tokio], PostgreSQL through #ext("sqlx")[sqlx], LDAPS through the `ldap3` crate (#adr("0017")).
 - *Judge*: synchronous; an asynchronous runtime is only added if a measurement justifies it.
