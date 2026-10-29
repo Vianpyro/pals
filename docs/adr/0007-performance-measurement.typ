@@ -38,12 +38,14 @@ The platform runs under #ext("gvisor")[gVisor] (#adr("0002")), in a VM where KVM
 
 *Measurement.* Performance is measured in *executed instructions*, under QEMU user mode (#ext("qemu-insn")[`qemu-x86_64 -plugin libinsn.so`]), not in time. For each runtime to behave deterministically:
 
-- processes are limited to a single thread;
+- the student's code runs on a single thread; the runtime's own threads (the JVM's VM and JIT compiler threads) cannot be removed, so instructions are counted across all threads;
 - inputs and the random seed are fixed;
 - Python uses `PYTHONHASHSEED=0`;
-- the JVM uses `-Xbatch` and a fixed-size heap.
+- the JVM uses `-Xbatch`, a fixed-size heap and the serial collector (`-XX:+UseSerialGC`).
 
 Counting is only active during the call to the student's function, thanks to a marker emitted by the harness. Reading the inputs, whose cost depends heavily on the language, is therefore excluded.
+
+*Garbage collection* is not separated from the student's instructions: a solution that allocates more makes the collector work more, and that cost is legitimately its own. What matters is that collection is deterministic. With fixed inputs, a fixed heap and a serial collector, collections are triggered at the same points on every run. Python's reference counting is inline, and its cyclic collector is triggered by allocation counts. A collection that occurs at one input size but not the next creates a step in the count; the slope is therefore fitted over several sizes rather than computed from two.
 
 *Neutralizing the language.* A student is only compared with a reference solution *in the same language*. The main criterion is *complexity*: several input sizes are measured, then the log-log slope of the instruction differences between sizes is computed, which removes the startup cost. This slope does not depend on the language. Two grading models remain to be settled with the instructor:
 
@@ -99,5 +101,7 @@ The measurement queue is a lower-priority queue in #ext("postgresql")[PostgreSQL
   Measure an O(n²) sort and an O(n log n) sort in Python, Java and Rust, under QEMU and inside gVisor. Repeat each measurement 30 times, with and without #ext("stress-ng")[`stress-ng`] on the VM. Criteria:
   - a coefficient of variation below 0.1%;
   - a slope that separates the two sorts in all three languages;
-  - ratios to the reference of the same order from one language to another.
+  - ratios to the reference of the same order from one language to another;
+  - the instruction count includes the JVM's threads other than the main one;
+  - a slope that stays the same with the collector disabled (`gc.disable()` in Python, Epsilon GC in Java), so collection steps do not skew it.
 ]
