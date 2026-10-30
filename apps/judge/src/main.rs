@@ -1,6 +1,6 @@
 //! Pulls jobs, runs the sandbox and writes the verdict.
 
-use std::{env, error::Error, io, path::Path, str::FromStr, time::Duration};
+use std::{env, error::Error, future, io, path::Path, str::FromStr, time::Duration};
 
 use judge::{Case, Job, Verdict, claim, fail, finish, judge_cases, read_cases};
 use sqlx::{Connection, PgConnection};
@@ -41,9 +41,16 @@ const POLL: Duration = Duration::from_secs(1);
 async fn main() -> Result<(), Box<dyn Error>> {
     let database = env::var("DATABASE_URL")?;
     let content = env::var_os("CONTENT").ok_or("CONTENT is not set")?;
+    let mut stop = stop_signal()?;
     let mut connection = PgConnection::connect(&database).await?;
 
     loop {
+        tokio::select! {
+            biased;
+            _ = stop.recv() => return Ok(()),
+            () = future::ready(()) => {}
+        }
+
         let Some(job) = claim(&mut connection).await? else {
             time::sleep(POLL).await;
             continue;
@@ -67,6 +74,17 @@ async fn main() -> Result<(), Box<dyn Error>> {
             eprintln!("judge: job {} was no longer running", job.id);
         }
     }
+}
+
+#[cfg(unix)]
+fn stop_signal() -> io::Result<tokio::signal::unix::Signal> {
+    use tokio::signal::unix::{SignalKind, signal};
+    signal(SignalKind::terminate())
+}
+
+#[cfg(windows)]
+fn stop_signal() -> io::Result<tokio::signal::windows::CtrlC> {
+    tokio::signal::windows::ctrl_c()
 }
 
 fn prepare(content: &Path, job: &Job) -> io::Result<(Pack, Vec<Case>)> {

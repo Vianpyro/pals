@@ -18,6 +18,7 @@ tokio = { version = "1.53.2", features = [
     "macros",
     "process",
     "rt",
+    "signal",
     "time",
 ] }
 
