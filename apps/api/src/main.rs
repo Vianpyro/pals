@@ -10,8 +10,10 @@ use axum::{
 };
 use contracts::Id;
 use serde::{Deserialize, Serialize};
-use sqlx::{FromRow, PgPool};
+use sqlx::{FromRow, PgPool, migrate::Migrator};
 use uuid::Uuid;
+
+static MIGRATOR: Migrator = sqlx::migrate!("../../db/migrations");
 
 const CONTRACT: i32 = 1;
 const MAX_SOURCE: usize = 1024 * 1024;
@@ -20,8 +22,16 @@ const MAX_SOURCE: usize = 1024 * 1024;
 async fn main() -> Result<(), Box<dyn Error>> {
     let database = env::var("DATABASE_URL")?;
     let pool = PgPool::connect(&database).await?;
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:8080").await?;
-    axum::serve(listener, app(pool)).await?;
+
+    match env::args().nth(1).as_deref() {
+        None => {
+            let listener = tokio::net::TcpListener::bind("0.0.0.0:8080").await?;
+            axum::serve(listener, app(pool)).await?;
+        }
+        Some("migrate") => MIGRATOR.run(&pool).await?,
+        Some(command) => return Err(format!("unknown command: {command}").into()),
+    }
+
     Ok(())
 }
 
@@ -157,6 +167,14 @@ mod tests {
             .await
             .unwrap();
         assert!(finished);
+    }
+
+    #[sqlx::test(migrations = false)]
+    #[ignore = "needs PostgreSQL"]
+    async fn migrations_apply_once(pool: PgPool) {
+        MIGRATOR.run(&pool).await.unwrap();
+        MIGRATOR.run(&pool).await.unwrap();
+        assert_eq!(waiting_jobs(&pool).await, 0);
     }
 
     #[tokio::test]
