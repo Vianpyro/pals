@@ -47,6 +47,7 @@ check "typst" 1 typst --version
 check "ansible" 1 ansible --version
 check "ansible-lint" 1 ansible-lint --version
 check "cargo" 1 cargo --version
+check "gh" 1 gh --version
 
 if [ "$failed" -ne 0 ]; then
   cat <<'EOF'

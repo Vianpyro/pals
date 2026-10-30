@@ -8,6 +8,7 @@
     // A dockerd inside the container, where runsc can be registered (see Dockerfile).
     // Docker CE rather than Moby, which is not packaged for Debian trixie.
     "ghcr.io/devcontainers/features/docker-in-docker:4": { "moby": false },
+    "ghcr.io/devcontainers/features/github-cli:1": {},
     // Same version as rust-toolchain.toml, which rustup reads; otherwise a second toolchain is installed.
     "ghcr.io/devcontainers/features/rust:1": { "version": "1.99.1" }
   },
