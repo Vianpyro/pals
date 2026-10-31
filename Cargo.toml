@@ -17,6 +17,7 @@ publish = false
 
 [workspace.dependencies]
 contracts = { path = "packages/contracts" }
+content = { path = "packages/content" }
 
 [workspace.lints.rust]
 dead_code_pub_in_binary = "warn"

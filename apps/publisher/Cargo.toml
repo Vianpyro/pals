@@ -7,6 +7,11 @@ publish.workspace = true
 
 [dependencies]
 contracts.workspace = true
+hex = "0.4.3"
+sha2 = "0.11.1"
+
+[dev-dependencies]
+content.workspace = true
 
 [lints]
 workspace = true
