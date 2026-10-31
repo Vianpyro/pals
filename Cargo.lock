@@ -4,7 +4,7 @@ version = 4
 
 [[package]]
 name = "admin"
-version = "0.1.35"
+version = "0.1.36"
 
 [[package]]
 name = "allocator-api2"
@@ -14,7 +14,7 @@ checksum = "683d7910e743518b0e34f1186f92494becacb047c7b6bf616c96772180fef923"
 
 [[package]]
 name = "api"
-version = "0.1.35"
+version = "0.1.36"
 dependencies = [
  "axum",
  "contracts",
@@ -180,14 +180,14 @@ checksum = "a6ef517f0926dd24a1582492c791b6a4818a4d94e789a334894aa15b0d12f55c"
 
 [[package]]
 name = "content"
-version = "0.1.35"
+version = "0.1.36"
 dependencies = [
  "contracts",
 ]
 
 [[package]]
 name = "contracts"
-version = "0.1.35"
+version = "0.1.36"
 dependencies = [
  "serde",
 ]
@@ -749,7 +749,7 @@ dependencies = [
 
 [[package]]
 name = "judge"
-version = "0.1.35"
+version = "0.1.36"
 dependencies = [
  "sqlx",
  "tokio",
@@ -913,7 +913,7 @@ dependencies = [
 
 [[package]]
 name = "publisher"
-version = "0.1.35"
+version = "0.1.36"
 dependencies = [
  "content",
  "contracts",
