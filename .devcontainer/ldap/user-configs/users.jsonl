@@ -1,0 +1,43 @@
+{
+  "id": "svc-log791",
+  "email": "svc-log791@log791.ca",
+  "password": "log791-svc",
+  "displayName": "LOG791 service account",
+  "groups": ["lldap_strict_readonly"]
+}
+{
+  "id": "etudiant1",
+  "email": "etudiant1@log791.ca",
+  "password": "log791-dev",
+  "displayName": "Céline Dion",
+  "firstName": "Céline",
+  "lastName": "Dion",
+  "groups": ["etudiants"]
+}
+{
+  "id": "etudiant2",
+  "email": "etudiant2@log791.ca",
+  "password": "log791-dev",
+  "displayName": "François Pérusse",
+  "firstName": "François",
+  "lastName": "Pérusse",
+  "groups": ["etudiants"]
+}
+{
+  "id": "enseignant1",
+  "email": "enseignant1@log791.ca",
+  "password": "log791-dev",
+  "displayName": "Jean-René Dufort",
+  "firstName": "Jean-René",
+  "lastName": "Dufort",
+  "groups": ["enseignants"]
+}
+{
+  "id": "admin1",
+  "email": "admin1@log791.ca",
+  "password": "log791-dev",
+  "displayName": "Guylaine Gagnon",
+  "firstName": "Guylaine",
+  "lastName": "Gagnon",
+  "groups": ["admins"]
+}

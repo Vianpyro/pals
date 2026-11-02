@@ -51,7 +51,7 @@ services:
   # Creates the test accounts of ldap/ once lldap answers, then exits.
   ldap-seed:
     image: lldap/lldap:v0.6.3
-    entrypoint: ["/app/bootstrap.sh"]
+    entrypoint: ["bash", "/bootstrap/seed.sh"]
     environment:
       LLDAP_URL: http://ldap:17170
       LLDAP_ADMIN_USERNAME: admin

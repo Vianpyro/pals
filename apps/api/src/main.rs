@@ -13,6 +13,9 @@ use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, PgPool, migrate::Migrator};
 use uuid::Uuid;
 
+#[cfg_attr(not(test), expect(dead_code, reason = "no sign-in route yet"))]
+mod directory;
+
 static MIGRATOR: Migrator = sqlx::migrate!("../../db/migrations");
 
 const CONTRACT: i32 = 1;
