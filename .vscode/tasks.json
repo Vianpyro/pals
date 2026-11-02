@@ -13,7 +13,14 @@
       "label": "rust: check",
       "detail": "Format, Clippy and tests, as CI does",
       "type": "shell",
-      "command": "cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test",
+      "command": "cargo fmt --check && SQLX_OFFLINE=true cargo clippy --locked --all-targets -- -D warnings && cargo test",
+      "problemMatcher": ["$rustc"]
+    },
+    {
+      "label": "db: prepare queries",
+      "detail": "Refresh .sqlx/ after changing a query! macro; commit the result",
+      "type": "shell",
+      "command": "cargo sqlx prepare --workspace -- --all-targets",
       "problemMatcher": ["$rustc"]
     },
     {
