@@ -11,6 +11,7 @@ use axum::{
 use contracts::Id;
 use directory::{Directory, Identity, SignInError};
 use serde::{Deserialize, Serialize};
+use session::Account;
 use sqlx::{PgPool, migrate::Migrator};
 use uuid::Uuid;
 
@@ -21,7 +22,6 @@ static MIGRATOR: Migrator = sqlx::migrate!("../../db/migrations");
 
 const CONTRACT: i32 = 1;
 const MAX_SOURCE: usize = 1024 * 1024;
-const SESSION_COOKIE: &str = "__Host-session";
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -97,7 +97,10 @@ async fn sign_in(
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
 
-    let cookie = format!("{SESSION_COOKIE}={token}; Path=/; Secure; HttpOnly; SameSite=Lax");
+    let cookie = format!(
+        "{}={token}; Path=/; Secure; HttpOnly; SameSite=Lax",
+        session::COOKIE
+    );
     Ok(([(header::SET_COOKIE, cookie)], Json(identity)))
 }
 
@@ -115,6 +118,7 @@ struct Submitted {
 }
 
 async fn submit(
+    _account: Account,
     State(pool): State<PgPool>,
     Json(submission): Json<Submission>,
 ) -> Result<(StatusCode, Json<Submitted>), StatusCode> {
@@ -149,6 +153,7 @@ struct Progress {
 }
 
 async fn progress(
+    _account: Account,
     State(pool): State<PgPool>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Progress>, StatusCode> {
@@ -190,6 +195,11 @@ mod tests {
         app(pool.clone(), directory).oneshot(request).await.unwrap()
     }
 
+    async fn signed_in(pool: &PgPool) -> String {
+        let token = session::open(pool, "etudiant1").await.unwrap();
+        format!("{}={token}", session::COOKIE)
+    }
+
     async fn sessions(pool: &PgPool) -> i64 {
         sqlx::query_scalar("SELECT count(*) FROM sessions")
             .fetch_one(pool)
@@ -197,9 +207,10 @@ mod tests {
             .unwrap()
     }
 
-    async fn post_submission(pool: &PgPool, body: &'static str) -> StatusCode {
+    async fn post_submission(pool: &PgPool, cookie: &str, body: &'static str) -> StatusCode {
         let request = Request::post("/submissions")
             .header(header::CONTENT_TYPE, "application/json")
+            .header(header::COOKIE, cookie)
             .body(Body::from(body))
             .unwrap();
         app(pool.clone(), Directory::unreachable())
@@ -209,8 +220,9 @@ mod tests {
             .status()
     }
 
-    async fn get_submission(pool: &PgPool, id: &str) -> (StatusCode, String) {
+    async fn get_submission(pool: &PgPool, cookie: &str, id: &str) -> (StatusCode, String) {
         let request = Request::get(format!("/submissions/{id}"))
+            .header(header::COOKIE, cookie)
             .body(Body::empty())
             .unwrap();
         let response = app(pool.clone(), Directory::unreachable())
@@ -292,7 +304,10 @@ mod tests {
     #[ignore = "needs PostgreSQL"]
     async fn submission_is_queued(pool: PgPool) {
         let body = r#"{"course": "log200", "exercise": "sum", "language_pack": "python", "source": "print(0)"}"#;
-        assert_eq!(post_submission(&pool, body).await, StatusCode::ACCEPTED);
+        assert_eq!(
+            post_submission(&pool, &signed_in(&pool).await, body).await,
+            StatusCode::ACCEPTED
+        );
         assert_eq!(waiting_jobs(&pool).await, 1);
     }
 
@@ -301,7 +316,7 @@ mod tests {
     async fn invalid_identifier_is_rejected(pool: PgPool) {
         let body = r#"{"course": "log200", "exercise": "../sum", "language_pack": "python", "source": "print(0)"}"#;
         assert_eq!(
-            post_submission(&pool, body).await,
+            post_submission(&pool, &signed_in(&pool).await, body).await,
             StatusCode::UNPROCESSABLE_ENTITY
         );
         assert_eq!(waiting_jobs(&pool).await, 0);
@@ -313,17 +328,19 @@ mod tests {
         let body =
             r#"{"course": "log200", "exercise": "sum", "language_pack": "python", "source": ""}"#;
         assert_eq!(
-            post_submission(&pool, body).await,
+            post_submission(&pool, &signed_in(&pool).await, body).await,
             StatusCode::UNPROCESSABLE_ENTITY
         );
         assert_eq!(waiting_jobs(&pool).await, 0);
     }
 
-    #[tokio::test]
-    async fn malformed_id_is_a_bad_request() {
-        let pool = PgPool::connect_lazy("postgres://unused").unwrap();
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL"]
+    async fn malformed_id_is_a_bad_request(pool: PgPool) {
         assert_eq!(
-            get_submission(&pool, "not-a-uuid").await.0,
+            get_submission(&pool, &signed_in(&pool).await, "not-a-uuid")
+                .await
+                .0,
             StatusCode::BAD_REQUEST
         );
     }
@@ -332,7 +349,7 @@ mod tests {
     #[ignore = "needs PostgreSQL"]
     async fn unknown_submission_is_not_found(pool: PgPool) {
         assert_eq!(
-            get_submission(&pool, &Uuid::nil().to_string()).await,
+            get_submission(&pool, &signed_in(&pool).await, &Uuid::nil().to_string()).await,
             (StatusCode::NOT_FOUND, String::new())
         );
     }
@@ -342,7 +359,7 @@ mod tests {
     async fn queued_submission_is_waiting(pool: PgPool) {
         let job = enqueue(&pool).await;
         assert_eq!(
-            get_submission(&pool, &job.to_string()).await,
+            get_submission(&pool, &signed_in(&pool).await, &job.to_string()).await,
             (
                 StatusCode::OK,
                 r#"{"state":"waiting","passed":null}"#.to_string()
@@ -356,7 +373,7 @@ mod tests {
         let failed = enqueue(&pool).await;
         judge(&pool, failed, "{passed,wrong-answer}").await;
         assert_eq!(
-            get_submission(&pool, &failed.to_string()).await,
+            get_submission(&pool, &signed_in(&pool).await, &failed.to_string()).await,
             (
                 StatusCode::OK,
                 r#"{"state":"done","passed":false}"#.to_string()
@@ -366,12 +383,52 @@ mod tests {
         let passed = enqueue(&pool).await;
         judge(&pool, passed, "{passed,passed}").await;
         assert_eq!(
-            get_submission(&pool, &passed.to_string()).await,
+            get_submission(&pool, &signed_in(&pool).await, &passed.to_string()).await,
             (
                 StatusCode::OK,
                 r#"{"state":"done","passed":true}"#.to_string()
             )
         );
+    }
+
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL"]
+    async fn submission_without_session_is_unauthorized(pool: PgPool) {
+        let body = r#"{"course": "log200", "exercise": "sum", "language_pack": "python", "source": "print(0)"}"#;
+        assert_eq!(
+            post_submission(&pool, "", body).await,
+            StatusCode::UNAUTHORIZED
+        );
+        assert_eq!(waiting_jobs(&pool).await, 0);
+    }
+
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL"]
+    async fn expired_session_is_unauthorized(pool: PgPool) {
+        let cookie = signed_in(&pool).await;
+        sqlx::query(
+            "UPDATE sessions SET opened_at = now() - interval '2 days', expires_at = now() - interval '1 day'",
+        )
+        .execute(&pool).await.unwrap();
+
+        let body = r#"{"course": "log200", "exercise": "sum", "language_pack": "python", "source": "print(0)"}"#;
+        assert_eq!(
+            post_submission(&pool, &cookie, body).await,
+            StatusCode::UNAUTHORIZED
+        );
+        assert_eq!(waiting_jobs(&pool).await, 0);
+    }
+
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL"]
+    async fn session_cookie_is_found_among_others(pool: PgPool) {
+        let cookie = format!("theme=dark; {}", signed_in(&pool).await);
+        let body = r#"{"course": "log200", "exercise": "sum", "language_pack": "python", "source": "print(0)"}"#;
+        assert_eq!(
+            post_submission(&pool, &cookie, body).await,
+            StatusCode::ACCEPTED
+        );
+        assert_eq!(waiting_jobs(&pool).await, 1);
     }
 
     #[sqlx::test(migrations = "../../db/migrations")]
