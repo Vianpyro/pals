@@ -18,6 +18,13 @@ publish = false
 [workspace.dependencies]
 contracts = { path = "packages/contracts" }
 content = { path = "packages/content" }
+sqlx = { version = "0.9.0", default-features = false, features = [
+    "runtime-tokio",
+    "postgres",
+    "macros",
+    "migrate",
+    "uuid",
+] }
 
 [workspace.lints.rust]
 dead_code_pub_in_binary = "warn"

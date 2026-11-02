@@ -1,10 +1,10 @@
 //! Jobs claimed from the PostgreSQL queue (ADR-0001)
 
-use sqlx::{FromRow, PgConnection, types::Uuid};
+use sqlx::{PgConnection, types::Uuid};
 
 use crate::Verdict;
 
-#[derive(Debug, FromRow)]
+#[derive(Debug)]
 pub struct Job {
     pub id: Uuid,
     pub contract: i32,
@@ -15,9 +15,22 @@ pub struct Job {
 }
 
 pub async fn claim(connection: &mut PgConnection) -> sqlx::Result<Option<Job>> {
-    sqlx::query_as("SELECT id, contract, course, exercise, language_pack, source FROM claim_job()")
-        .fetch_optional(connection)
-        .await
+    // RETURNS TABLE hides nullability from the macros: every column comes from a NOT NULL column of jobs
+    sqlx::query_as!(
+        Job,
+        r#"
+            SELECT
+                id AS "id!",
+                contract AS "contract!",
+                course AS "course!: String",
+                exercise AS "exercise!: String",
+                language_pack AS "language_pack!: String",
+                source AS "source!"
+            FROM claim_job()
+        "#
+    )
+    .fetch_optional(connection)
+    .await
 }
 
 pub async fn finish(
@@ -25,16 +38,17 @@ pub async fn finish(
     job: Uuid,
     verdicts: &[Verdict],
 ) -> sqlx::Result<bool> {
-    sqlx::query_scalar("SELECT finish_job($1, $2)")
-        .bind(job)
-        .bind(verdicts)
-        .fetch_one(connection)
-        .await
+    sqlx::query_scalar!(
+        r#"SELECT finish_job($1, $2) AS "finished!""#,
+        job,
+        verdicts as &[Verdict]
+    )
+    .fetch_one(connection)
+    .await
 }
 
 pub async fn fail(connection: &mut PgConnection, job: Uuid) -> sqlx::Result<bool> {
-    sqlx::query_scalar("SELECT fail_job($1)")
-        .bind(job)
+    sqlx::query_scalar!(r#"SELECT fail_job($1) AS "failed!""#, job)
         .fetch_one(connection)
         .await
 }

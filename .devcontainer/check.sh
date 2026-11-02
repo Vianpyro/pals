@@ -38,6 +38,9 @@ runsc_registered() {
 }
 
 check "postgres" 30 pg_isready -h postgres -U log791
+# Not only a check: query! macros compile against this schema. Idempotent; not `api migrate`,
+# which itself needs the schema to compile.
+check "postgres: migrations" 1 sqlx migrate run --source db/migrations
 check "ldap: test accounts" 60 ldap_finds_student
 check "docker: inner daemon" 30 docker info
 check "docker: runsc registered" 5 runsc_registered

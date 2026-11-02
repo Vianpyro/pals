@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT fail_job($1) AS \"failed!\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "failed!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "6c18c9de165842d9b4ff2712f23f1924cccc01f1a5bf0a78cc4ac7cf6bca9b17"
+}

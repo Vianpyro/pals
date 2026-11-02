@@ -11,7 +11,7 @@ use axum::{
 use contracts::Id;
 use directory::{Directory, Identity, SignInError};
 use serde::{Deserialize, Serialize};
-use sqlx::{FromRow, PgPool, migrate::Migrator};
+use sqlx::{PgPool, migrate::Migrator};
 use uuid::Uuid;
 
 mod directory;
@@ -114,12 +114,6 @@ struct Submitted {
     id: Uuid,
 }
 
-const ENQUEUE: &str = "
-    INSERT INTO jobs (contract, course, exercise, language_pack, source)
-    VALUES ($1, $2, $3, $4, $5)
-    RETURNING id
-";
-
 async fn submit(
     State(pool): State<PgPool>,
     Json(submission): Json<Submission>,
@@ -127,44 +121,51 @@ async fn submit(
     if submission.source.is_empty() || submission.source.len() > MAX_SOURCE {
         return Err(StatusCode::UNPROCESSABLE_ENTITY);
     }
-    let id = sqlx::query_scalar(ENQUEUE)
-        .bind(CONTRACT)
-        .bind(submission.course.as_str())
-        .bind(submission.exercise.as_str())
-        .bind(submission.language_pack.as_str())
-        .bind(submission.source)
-        .fetch_one(&pool)
-        .await
-        .map_err(|error| {
-            eprintln!("api: enqueue: {error}");
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
+    let id = sqlx::query_scalar!(
+        r#"
+        INSERT INTO jobs (contract, course, exercise, language_pack, source)
+        VALUES ($1, $2::text, $3::text, $4::text, $5)
+        RETURNING id AS "id!"
+        "#,
+        CONTRACT,
+        submission.course.as_str(),
+        submission.exercise.as_str(),
+        submission.language_pack.as_str(),
+        submission.source
+    )
+    .fetch_one(&pool)
+    .await
+    .map_err(|error| {
+        eprintln!("api: enqueue: {error}");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
     Ok((StatusCode::ACCEPTED, Json(Submitted { id })))
 }
 
-#[derive(Serialize, FromRow)]
+#[derive(Serialize)]
 struct Progress {
     state: String,
     passed: Option<bool>,
 }
 
-const PROGRESS: &str = r#"
-    SELECT state::text, (result -> 'cases') <@ '["passed"]' AS passed
-    FROM jobs WHERE id = $1
-"#;
-
 async fn progress(
     State(pool): State<PgPool>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Progress>, StatusCode> {
-    let progress = sqlx::query_as(PROGRESS)
-        .bind(id)
-        .fetch_optional(&pool)
-        .await
-        .map_err(|error| {
-            eprintln!("api: progress: {error}");
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
+    let progress = sqlx::query_as!(
+        Progress,
+        r#"
+            SELECT state::text AS "state!", (result -> 'cases') <@ '["passed"]' AS "passed?"
+            FROM jobs WHERE id = $1
+        "#,
+        id
+    )
+    .fetch_optional(&pool)
+    .await
+    .map_err(|error| {
+        eprintln!("api: progress: {error}");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
     progress.map(Json).ok_or(StatusCode::NOT_FOUND)
 }
 

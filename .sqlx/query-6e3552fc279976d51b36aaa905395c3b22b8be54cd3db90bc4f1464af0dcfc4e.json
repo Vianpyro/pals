@@ -1,0 +1,43 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT finish_job($1, $2) AS \"finished!\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "finished!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        {
+          "Custom": {
+            "name": "case_verdict[]",
+            "kind": {
+              "Array": {
+                "Custom": {
+                  "name": "case_verdict",
+                  "kind": {
+                    "Enum": [
+                      "passed",
+                      "wrong-answer",
+                      "crashed",
+                      "timed-out"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "6e3552fc279976d51b36aaa905395c3b22b8be54cd3db90bc4f1464af0dcfc4e"
+}

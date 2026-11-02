@@ -20,7 +20,9 @@
   },
   // Dependencies are fetched once per build; builds go to CARGO_TARGET_DIR, outside the bind mount.
   // The commit-msg hook is enabled in .git/config, shared with the host.
-  "postCreateCommand": "cargo fetch --locked && git config core.hooksPath .githooks",
+  // sqlx-cli migrates the dev database; its version is the sqlx crate's, read from Cargo.lock
+  // (cargo pkgid prints "registry+…#sqlx@0.9.0").
+  "postCreateCommand": "cargo fetch --locked && cargo install sqlx-cli --locked --version \"$(cargo pkgid sqlx | cut -d@ -f2)\" --no-default-features --features postgres && git config core.hooksPath .githooks",
   "postStartCommand": "bash .devcontainer/check.sh",
   "customizations": {
     "vscode": {

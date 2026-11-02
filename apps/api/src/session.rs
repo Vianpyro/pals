@@ -4,20 +4,20 @@ use std::error::Error;
 
 use sqlx::PgPool;
 
-// Only the token's hash is stored: reading the table, or a backup of it, opens no session
-const OPEN: &str = "INSERT INTO sessions (token_hash, account) VALUES (sha256($1), $2)";
-
 // The token is 128 bits from the system's CSPRNG, written as 32 hexadecimal digits
 pub(super) async fn open(pool: &PgPool, account: &str) -> Result<String, Box<dyn Error>> {
     let mut random = [0; 16];
     getrandom::fill(&mut random)?;
     let token = format!("{:032x}", u128::from_ne_bytes(random));
 
-    sqlx::query(OPEN)
-        .bind(token.as_bytes())
-        .bind(account)
-        .execute(pool)
-        .await?;
+    // Only the token's hash is stored: reading the table, or a backup of it, opens no session
+    sqlx::query!(
+        "INSERT INTO sessions (token_hash, account) VALUES (sha256($1), $2)",
+        token.as_bytes(),
+        account
+    )
+    .execute(pool)
+    .await?;
     Ok(token)
 }
 

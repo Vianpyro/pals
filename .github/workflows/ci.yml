@@ -16,6 +16,7 @@ concurrency:
 jobs:
   # The same environment as locally: PostgreSQL, LDAP and gVisor, checked by check.sh.
   # Ignored tests need these services: they run here.
+  # The queries are checked against the migrated schema; .sqlx/ must match it.
   devcontainer:
     runs-on: ubuntu-latest
     steps:
@@ -24,11 +25,14 @@ jobs:
       - uses: devcontainers/ci@v0.3
         with:
           push: never
-          runCmd: bash .devcontainer/check.sh && cargo test --locked -- --ignored
+          runCmd: bash .devcontainer/check.sh && bash tests/queries/check.sh && cargo test --locked -- --ignored
 
   # The runner's rustup installs the toolchain of rust-toolchain.toml on first use.
+  # No PostgreSQL here: query! macros read .sqlx/, written by cargo sqlx prepare.
   rust:
     runs-on: ubuntu-latest
+    env:
+      SQLX_OFFLINE: "true"
     steps:
       - uses: actions/checkout@v7
 
