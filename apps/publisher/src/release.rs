@@ -1,4 +1,4 @@
-//! Immuable releases named by the hash of their content, and the `current` pointer (ADR-0005)
+//! Immutable releases named by the hash of their content, and the `current` pointer (ADR-0005)
 
 use std::{
     fs, io,
