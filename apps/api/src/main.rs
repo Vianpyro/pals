@@ -1,25 +1,27 @@
 //! Sign-in, sessions, offerings, submissions and verdict notifications.
 
-use std::{env, error::Error};
+use std::{env, error::Error, sync::Arc};
 
 use axum::{
     Json, Router,
-    extract::{Path, State},
-    http::StatusCode,
+    extract::{FromRef, Path, State},
+    http::{HeaderName, StatusCode, header},
     routing::{get, post},
 };
 use contracts::Id;
+use directory::{Directory, Identity, SignInError};
 use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, PgPool, migrate::Migrator};
 use uuid::Uuid;
 
-#[cfg_attr(not(test), expect(dead_code, reason = "no sign-in route yet"))]
 mod directory;
+mod session;
 
 static MIGRATOR: Migrator = sqlx::migrate!("../../db/migrations");
 
 const CONTRACT: i32 = 1;
 const MAX_SOURCE: usize = 1024 * 1024;
+const SESSION_COOKIE: &str = "__Host-session";
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -28,8 +30,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     match env::args().nth(1).as_deref() {
         None => {
+            let directory = Directory::from_env()?;
             let listener = tokio::net::TcpListener::bind("0.0.0.0:8080").await?;
-            axum::serve(listener, app(pool)).await?;
+            axum::serve(listener, app(pool, directory)).await?;
         }
         Some("migrate") => MIGRATOR.run(&pool).await?,
         Some(command) => return Err(format!("unknown command: {command}").into()),
@@ -38,12 +41,64 @@ async fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn app(pool: PgPool) -> Router {
+#[derive(Clone)]
+struct AppState {
+    pool: PgPool,
+    directory: Arc<Directory>,
+}
+
+impl FromRef<AppState> for PgPool {
+    fn from_ref(state: &AppState) -> Self {
+        state.pool.clone()
+    }
+}
+
+impl FromRef<AppState> for Arc<Directory> {
+    fn from_ref(state: &AppState) -> Self {
+        Arc::clone(&state.directory)
+    }
+}
+
+fn app(pool: PgPool, directory: Directory) -> Router {
+    let state = AppState {
+        pool,
+        directory: Arc::new(directory),
+    };
     Router::new()
         .route("/health", get(|| async { StatusCode::OK }))
+        .route("/sessions", post(sign_in))
         .route("/submissions", post(submit))
         .route("/submissions/{id}", get(progress))
-        .with_state(pool)
+        .with_state(state)
+}
+
+// No Debug: it holds the password
+#[derive(Deserialize)]
+struct Credentials {
+    id: String,
+    password: String,
+}
+
+async fn sign_in(
+    State(pool): State<PgPool>,
+    State(directory): State<Arc<Directory>>,
+    Json(credentials): Json<Credentials>,
+) -> Result<([(HeaderName, String); 1], Json<Identity>), StatusCode> {
+    let identity = directory
+        .sign_in(&credentials.id, &credentials.password)
+        .await
+        .map_err(|error| match error {
+            SignInError::Refused => StatusCode::UNAUTHORIZED,
+            SignInError::Unavailable => StatusCode::SERVICE_UNAVAILABLE,
+        })?;
+
+    let token = session::open(&pool, &identity.id).await.map_err(|error| {
+        eprintln!("api: sign-in: {error}");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    let cookie = format!("{SESSION_COOKIE}={token}; Path=/; Secure; HttpOnly; SameSite=Lax");
+    Ok(([(header::SET_COOKIE, cookie)], Json(identity)))
 }
 
 #[derive(Deserialize)]
@@ -119,22 +174,48 @@ mod tests {
     use axum::{
         body::Body,
         http::{Request, header},
+        response::Response,
     };
     use tower::ServiceExt;
+
+    const RIGHT_PASSWORD: &str = r#"{"id": "etudiant1", "password": "log791-dev"}"#;
+    const WRONG_PASSWORD: &str = r#"{"id": "etudiant1", "password": "wrong"}"#;
+
+    async fn sign_in_with(pool: &PgPool, directory: Directory, body: &'static str) -> Response {
+        let request = Request::post("/sessions")
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from(body))
+            .unwrap();
+        app(pool.clone(), directory).oneshot(request).await.unwrap()
+    }
+
+    async fn sessions(pool: &PgPool) -> i64 {
+        sqlx::query_scalar("SELECT count(*) FROM sessions")
+            .fetch_one(pool)
+            .await
+            .unwrap()
+    }
 
     async fn post_submission(pool: &PgPool, body: &'static str) -> StatusCode {
         let request = Request::post("/submissions")
             .header(header::CONTENT_TYPE, "application/json")
             .body(Body::from(body))
             .unwrap();
-        app(pool.clone()).oneshot(request).await.unwrap().status()
+        app(pool.clone(), Directory::unreachable())
+            .oneshot(request)
+            .await
+            .unwrap()
+            .status()
     }
 
     async fn get_submission(pool: &PgPool, id: &str) -> (StatusCode, String) {
         let request = Request::get(format!("/submissions/{id}"))
             .body(Body::empty())
             .unwrap();
-        let response = app(pool.clone()).oneshot(request).await.unwrap();
+        let response = app(pool.clone(), Directory::unreachable())
+            .oneshot(request)
+            .await
+            .unwrap();
         let status = response.status();
         let body = axum::body::to_bytes(response.into_body(), usize::MAX)
             .await
@@ -184,8 +265,26 @@ mod tests {
     async fn health_is_ok() {
         let pool = PgPool::connect_lazy("postgres://unused").unwrap();
         let request = Request::get("/health").body(Body::empty()).unwrap();
-        let response = app(pool).oneshot(request).await.unwrap();
+        let response = app(pool, Directory::unreachable())
+            .oneshot(request)
+            .await
+            .unwrap();
         assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn empty_password_is_unauthorized() {
+        let pool = PgPool::connect_lazy("postgres://unused").unwrap();
+        let body = r#"{"id": "etudiant1", "password": ""}"#;
+        let response = sign_in_with(&pool, Directory::unreachable(), body).await;
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn unreachable_directory_is_unavailable() {
+        let pool = PgPool::connect_lazy("postgres://unused").unwrap();
+        let response = sign_in_with(&pool, Directory::unreachable(), RIGHT_PASSWORD).await;
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
     }
 
     #[sqlx::test(migrations = "../../db/migrations")]
@@ -272,5 +371,40 @@ mod tests {
                 r#"{"state":"done","passed":true}"#.to_string()
             )
         );
+    }
+
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL and LDAP"]
+    async fn right_password_opens_a_session(pool: PgPool) {
+        let response = sign_in_with(&pool, Directory::from_env().unwrap(), RIGHT_PASSWORD).await;
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let cookie = response.headers()[header::SET_COOKIE].to_str().unwrap();
+        let (token, attributes) = cookie
+            .strip_prefix("__Host-session=")
+            .and_then(|rest| rest.split_once(';'))
+            .unwrap();
+        assert_eq!(attributes, " Path=/; Secure; HttpOnly; SameSite=Lax");
+        assert_eq!(
+            session::account(&pool, token).await.unwrap().as_deref(),
+            Some("etudiant1")
+        );
+
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        assert_eq!(
+            body,
+            r#"{"id":"etudiant1","name":"Céline Dion","email":"etudiant1@log791.ca"}"#
+        );
+    }
+
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL and LDAP"]
+    async fn wrong_password_opens_no_session(pool: PgPool) {
+        let response = sign_in_with(&pool, Directory::from_env().unwrap(), WRONG_PASSWORD).await;
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+        assert!(!response.headers().contains_key(header::SET_COOKIE));
+        assert_eq!(sessions(&pool).await, 0);
     }
 }

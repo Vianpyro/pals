@@ -3,6 +3,7 @@
 use std::{env, time::Duration};
 
 use ldap3::{Ldap, LdapConnAsync, LdapError, ResultEntry, Scope, SearchEntry, ldap_escape};
+use serde::Serialize;
 use tokio::time;
 
 // For the whole sing-in: a directory that does not answer refuses it instead of holding the request
@@ -22,7 +23,7 @@ pub(super) struct Directory {
     bind_password: String,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Serialize)]
 pub(super) struct Identity {
     pub(super) id: String,
     pub(super) name: Option<String>,
@@ -51,6 +52,17 @@ impl Directory {
             bind_dn: env::var("LDAP_BIND_DN")?,
             bind_password: env::var("LDAP_BIND_PASSWORD")?,
         })
+    }
+
+    #[cfg(test)]
+    pub(super) fn unreachable() -> Directory {
+        Directory {
+            url: "ldap://127.0.0.1:1".to_string(),
+            base_dn: String::new(),
+            user_attribute: "uid".to_string(),
+            bind_dn: String::new(),
+            bind_password: String::new(),
+        }
     }
 
     pub(super) async fn sign_in(&self, id: &str, password: &str) -> Result<Identity, SignInError> {
@@ -115,16 +127,6 @@ mod tests {
 
     const PASSWORD: &str = "log791-dev";
 
-    fn unreachable() -> Directory {
-        Directory {
-            url: "ldap://127.0.0.1:1".to_string(),
-            base_dn: String::new(),
-            user_attribute: "uid".to_string(),
-            bind_dn: String::new(),
-            bind_password: String::new(),
-        }
-    }
-
     fn local() -> Directory {
         Directory::from_env().unwrap()
     }
@@ -154,7 +156,7 @@ mod tests {
     #[tokio::test]
     async fn empty_password_is_refused_before_any_bind() {
         assert_eq!(
-            unreachable().sign_in("etudiant1", "").await,
+            Directory::unreachable().sign_in("etudiant1", "").await,
             Err(SignInError::Refused)
         );
     }
@@ -162,7 +164,9 @@ mod tests {
     #[tokio::test]
     async fn unreachable_directory_is_unavailable() {
         assert_eq!(
-            unreachable().sign_in("etudiant1", PASSWORD).await,
+            Directory::unreachable()
+                .sign_in("etudiant1", PASSWORD)
+                .await,
             Err(SignInError::Unavailable)
         );
     }
