@@ -1,6 +1,6 @@
 # Development image: tools only, no application code or dependencies.
 # Dependabot updates the FROM line and requirements.txt; the ARG below is updated by hand.
-FROM mcr.microsoft.com/devcontainers/python:3.14-trixie
+FROM mcr.microsoft.com/devcontainers/python:3.15-trixie
 
 # Also read by .github/workflows/pages.yml: the HTML export changes between versions.
 ARG TYPST_VERSION=0.15.1
