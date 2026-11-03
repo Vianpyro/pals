@@ -4,13 +4,18 @@ use std::error::Error;
 
 use axum::{
     extract::FromRequestParts,
-    http::{StatusCode, header, request::Parts},
+    http::{HeaderMap, StatusCode, header, request::Parts},
 };
 use sqlx::PgPool;
 
 use super::AppState;
 
 pub(super) const COOKIE: &str = "__Host-session";
+
+// __Host- forbids Domain and requires Secure and Path=/: the cookie never leaves this exact host
+pub(super) fn cookie(token: &str) -> String {
+    format!("{COOKIE}={token}; Path=/; Secure; HttpOnly; SameSite=Lax")
+}
 
 // The token is 128 bits from the system's CSPRNG, written as 32 hexadecimal digits
 pub(super) async fn open(pool: &PgPool, account: &str) -> Result<String, Box<dyn Error>> {
@@ -27,6 +32,25 @@ pub(super) async fn open(pool: &PgPool, account: &str) -> Result<String, Box<dyn
     .execute(pool)
     .await?;
     Ok(token)
+}
+
+pub(super) async fn close(pool: &PgPool, token: &str) -> sqlx::Result<()> {
+    sqlx::query!(
+        "DELETE FROM sessions WHERE token_hash = sha256($1)",
+        token.as_bytes()
+    )
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+pub(super) fn token(headers: &HeaderMap) -> Option<&str> {
+    headers
+        .get_all(header::COOKIE)
+        .iter()
+        .filter_map(|value| value.to_str().ok())
+        .flat_map(|cookies| cookies.split("; "))
+        .find_map(|cookie| cookie.strip_prefix(COOKIE)?.strip_prefix('='))
 }
 
 // Becomes the session check of every route; tests only until then
@@ -49,15 +73,7 @@ impl FromRequestParts<AppState> for Account {
         parts: &mut Parts,
         state: &AppState,
     ) -> Result<Self, Self::Rejection> {
-        let token = parts
-            .headers
-            .get_all(header::COOKIE)
-            .iter()
-            .filter_map(|value| value.to_str().ok())
-            .flat_map(|cookies| cookies.split("; "))
-            .find_map(|cookie| cookie.strip_prefix(COOKIE)?.strip_prefix('='))
-            .ok_or(StatusCode::UNAUTHORIZED)?;
-
+        let token = token(&parts.headers).ok_or(StatusCode::UNAUTHORIZED)?;
         match account(&state.pool, token).await {
             Ok(Some(account)) => Ok(Account(account)),
             Ok(None) => Err(StatusCode::UNAUTHORIZED),

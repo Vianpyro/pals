@@ -11,7 +11,7 @@ use std::{
 use axum::{
     Json, Router,
     extract::{FromRef, Path, State},
-    http::{HeaderName, StatusCode, header},
+    http::{HeaderMap, HeaderName, StatusCode, header},
     routing::{get, post},
 };
 use contracts::Id;
@@ -87,7 +87,7 @@ fn app(pool: PgPool, directory: Directory, courses: PathBuf) -> Router {
             get(statement),
         )
         .route("/health", get(|| async { StatusCode::OK }))
-        .route("/sessions", post(sign_in))
+        .route("/sessions", post(sign_in).delete(sign_out))
         .route("/submissions", post(submit))
         .route("/submissions/{id}", get(progress))
         .with_state(state)
@@ -118,11 +118,22 @@ async fn sign_in(
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
 
-    let cookie = format!(
-        "{}={token}; Path=/; Secure; HttpOnly; SameSite=Lax",
-        session::COOKIE
-    );
+    let cookie = session::cookie(&token);
     Ok(([(header::SET_COOKIE, cookie)], Json(identity)))
+}
+
+async fn sign_out(
+    State(pool): State<PgPool>,
+    headers: HeaderMap,
+) -> Result<(StatusCode, [(HeaderName, String); 1]), StatusCode> {
+    if let Some(token) = session::token(&headers) {
+        session::close(&pool, token).await.map_err(|error| {
+            eprintln!("api: sign-out: {error}");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+    }
+    let cookie = format!("{}; Max-Age=0", session::cookie(""));
+    Ok((StatusCode::NO_CONTENT, [(header::SET_COOKIE, cookie)]))
 }
 
 async fn statement(
@@ -230,6 +241,17 @@ mod tests {
             .body(Body::from(body))
             .unwrap();
         app(pool.clone(), directory, PathBuf::new())
+            .oneshot(request)
+            .await
+            .unwrap()
+    }
+
+    async fn sign_out_with(pool: &PgPool, cookie: &str) -> Response {
+        let request = Request::delete("/sessions")
+            .header(header::COOKIE, cookie)
+            .body(Body::empty())
+            .unwrap();
+        app(pool.clone(), Directory::unreachable(), PathBuf::new())
             .oneshot(request)
             .await
             .unwrap()
@@ -382,6 +404,17 @@ mod tests {
         let pool = PgPool::connect_lazy("postgres://unused").unwrap();
         let response = sign_in_with(&pool, Directory::unreachable(), RIGHT_PASSWORD).await;
         assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+    }
+
+    #[tokio::test]
+    async fn sign_out_without_session_still_clears_the_cookie() {
+        let pool = PgPool::connect_lazy("postgres://unused").unwrap();
+        let response = sign_out_with(&pool, "").await;
+        assert_eq!(response.status(), StatusCode::NO_CONTENT);
+        assert_eq!(
+            response.headers()[header::SET_COOKIE],
+            "__Host-session=; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=0"
+        );
     }
 
     #[sqlx::test(migrations = "../../db/migrations")]
@@ -710,5 +743,38 @@ mod tests {
             StatusCode::NOT_FOUND
         );
         assert_eq!(waiting_jobs(&pool).await, 0);
+    }
+
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL"]
+    async fn sign_out_closes_only_its_session(pool: PgPool) {
+        let leaving = signed_in(&pool).await;
+        let staying = signed_in_as(&pool, "etudiant2").await;
+        assert_eq!(
+            sign_out_with(&pool, &leaving).await.status(),
+            StatusCode::NO_CONTENT
+        );
+        assert_eq!(sessions(&pool).await, 1);
+
+        let nil = Uuid::nil().to_string();
+        assert_eq!(
+            get_submission(&pool, &leaving, &nil).await.0,
+            StatusCode::UNAUTHORIZED
+        );
+        assert_eq!(
+            get_submission(&pool, &staying, &nil).await.0,
+            StatusCode::NOT_FOUND
+        );
+    }
+
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL"]
+    async fn signing_out_twice_is_no_content(pool: PgPool) {
+        let cookie = signed_in(&pool).await;
+        sign_out_with(&pool, &cookie).await;
+        assert_eq!(
+            sign_out_with(&pool, &cookie).await.status(),
+            StatusCode::NO_CONTENT
+        );
     }
 }
