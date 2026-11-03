@@ -1,6 +1,13 @@
 //! Sign-in, sessions, offerings, submissions and verdict notifications.
 
-use std::{env, error::Error, sync::Arc};
+use std::{
+    env,
+    error::Error,
+    fs, io,
+    path::{self, PathBuf},
+    sync::Arc,
+    time::SystemTime,
+};
 
 use axum::{
     Json, Router,
@@ -8,6 +15,7 @@ use axum::{
     http::{HeaderName, StatusCode, header},
     routing::{get, post},
 };
+use content::accessible_exercise;
 use contracts::Id;
 use directory::{Directory, Identity, SignInError};
 use serde::{Deserialize, Serialize};
@@ -16,6 +24,7 @@ use sqlx::{PgPool, migrate::Migrator};
 use uuid::Uuid;
 
 mod directory;
+mod schedule;
 mod session;
 
 static MIGRATOR: Migrator = sqlx::migrate!("../../db/migrations");
@@ -31,8 +40,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
     match env::args().nth(1).as_deref() {
         None => {
             let directory = Directory::from_env()?;
+            let courses = env::var_os("COURSES").ok_or("COURSES is not set")?;
             let listener = tokio::net::TcpListener::bind("0.0.0.0:8080").await?;
-            axum::serve(listener, app(pool, directory)).await?;
+            axum::serve(listener, app(pool, directory, courses.into())).await?;
         }
         Some("migrate") => MIGRATOR.run(&pool).await?,
         Some(command) => return Err(format!("unknown command: {command}").into()),
@@ -45,6 +55,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 struct AppState {
     pool: PgPool,
     directory: Arc<Directory>,
+    courses: Arc<path::Path>,
 }
 
 impl FromRef<AppState> for PgPool {
@@ -59,12 +70,23 @@ impl FromRef<AppState> for Arc<Directory> {
     }
 }
 
-fn app(pool: PgPool, directory: Directory) -> Router {
+impl FromRef<AppState> for Arc<path::Path> {
+    fn from_ref(state: &AppState) -> Self {
+        Arc::clone(&state.courses)
+    }
+}
+
+fn app(pool: PgPool, directory: Directory, courses: PathBuf) -> Router {
     let state = AppState {
         pool,
         directory: Arc::new(directory),
+        courses: Arc::from(courses),
     };
     Router::new()
+        .route(
+            "/courses/{course}/exercises/{exercise}/statement",
+            get(statement),
+        )
         .route("/health", get(|| async { StatusCode::OK }))
         .route("/sessions", post(sign_in))
         .route("/submissions", post(submit))
@@ -102,6 +124,32 @@ async fn sign_in(
         session::COOKIE
     );
     Ok(([(header::SET_COOKIE, cookie)], Json(identity)))
+}
+
+async fn statement(
+    Account(_): Account,
+    State(pool): State<PgPool>,
+    State(courses): State<Arc<path::Path>>,
+    Path((course, exercise)): Path<(Id, Id)>,
+) -> Result<String, StatusCode> {
+    let schedule = schedule::read(&pool, &course, &exercise)
+        .await
+        .map_err(|error| {
+            eprintln!("api: schedule: {error}");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    let course_dir = courses.join(course.as_str());
+    accessible_exercise(&course_dir, &exercise, &schedule, SystemTime::now())
+        .and_then(|dir| fs::read_to_string(dir.join("statement.md")))
+        .map_err(|error| match error.kind() {
+            io::ErrorKind::NotFound => StatusCode::NOT_FOUND,
+            io::ErrorKind::PermissionDenied => StatusCode::FORBIDDEN,
+            _ => {
+                eprintln!("api: statement: {error}");
+                StatusCode::INTERNAL_SERVER_ERROR
+            }
+        })
 }
 
 #[derive(Deserialize)]
@@ -195,7 +243,10 @@ mod tests {
             .header(header::CONTENT_TYPE, "application/json")
             .body(Body::from(body))
             .unwrap();
-        app(pool.clone(), directory).oneshot(request).await.unwrap()
+        app(pool.clone(), directory, PathBuf::new())
+            .oneshot(request)
+            .await
+            .unwrap()
     }
 
     async fn signed_in(pool: &PgPool) -> String {
@@ -220,27 +271,61 @@ mod tests {
             .header(header::COOKIE, cookie)
             .body(Body::from(body))
             .unwrap();
-        app(pool.clone(), Directory::unreachable())
+        app(pool.clone(), Directory::unreachable(), PathBuf::new())
             .oneshot(request)
             .await
             .unwrap()
             .status()
     }
 
-    async fn get_submission(pool: &PgPool, cookie: &str, id: &str) -> (StatusCode, String) {
-        let request = Request::get(format!("/submissions/{id}"))
+    async fn fetch(router: Router, cookie: &str, uri: &str) -> (StatusCode, String) {
+        let request = Request::get(uri)
             .header(header::COOKIE, cookie)
             .body(Body::empty())
             .unwrap();
-        let response = app(pool.clone(), Directory::unreachable())
-            .oneshot(request)
-            .await
-            .unwrap();
+        let response = router.oneshot(request).await.unwrap();
         let status = response.status();
         let body = axum::body::to_bytes(response.into_body(), usize::MAX)
             .await
             .unwrap();
         (status, String::from_utf8(body.to_vec()).unwrap())
+    }
+
+    async fn get_submission(pool: &PgPool, cookie: &str, id: &str) -> (StatusCode, String) {
+        let router = app(pool.clone(), Directory::unreachable(), PathBuf::new());
+        fetch(router, cookie, &format!("/submissions/{id}")).await
+    }
+
+    // The log200 course with the sum exercise, as the publisher leaves it
+    fn published_courses(name: &str) -> PathBuf {
+        let courses = env::temp_dir().join("api-tests").join(name);
+        let sum = courses.join("log200/releases/abc123/exercises/sum");
+        fs::create_dir_all(&sum).unwrap();
+        fs::write(sum.join("statement.md"), "# Somme").unwrap();
+        fs::write(courses.join("log200/current"), "abc123").unwrap();
+        courses
+    }
+
+    async fn get_statement(
+        pool: &PgPool,
+        courses: PathBuf,
+        cookie: &str,
+        exercise: &str,
+    ) -> (StatusCode, String) {
+        let router = app(pool.clone(), Directory::unreachable(), courses);
+        let uri = format!("/courses/log200/exercises/{exercise}/statement");
+        fetch(router, cookie, &uri).await
+    }
+
+    async fn schedule_sum(pool: &PgPool, opens_in: &str, closes_in: Option<&str>) {
+        sqlx::query(
+            "INSERT INTO schedules VALUES ('log200', 'sum', now() + $1::interval, now() + $2::interval)",
+        )
+        .bind(opens_in)
+        .bind(closes_in)
+        .execute(pool)
+        .await
+        .unwrap();
     }
 
     async fn waiting_jobs(pool: &PgPool) -> i64 {
@@ -277,6 +362,90 @@ mod tests {
         assert!(finished);
     }
 
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL"]
+    async fn open_exercise_shows_its_statement(pool: PgPool) {
+        schedule_sum(&pool, "-1 hour", Some("1 hour")).await;
+        let courses = published_courses("statement-open");
+        assert_eq!(
+            get_statement(&pool, courses, &signed_in(&pool).await, "sum").await,
+            (StatusCode::OK, "# Somme".to_string())
+        );
+    }
+
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL"]
+    async fn exercise_without_closing_stays_open(pool: PgPool) {
+        schedule_sum(&pool, "-1 hour", None).await;
+        let courses = published_courses("statement-practice");
+        assert_eq!(
+            get_statement(&pool, courses, &signed_in(&pool).await, "sum")
+                .await
+                .0,
+            StatusCode::OK
+        );
+    }
+
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL"]
+    async fn exercise_not_yet_open_is_forbidden(pool: PgPool) {
+        schedule_sum(&pool, "1 hour", Some("2 hours")).await;
+        let courses = published_courses("statement-not-yet-open");
+        assert_eq!(
+            get_statement(&pool, courses, &signed_in(&pool).await, "sum")
+                .await
+                .0,
+            StatusCode::FORBIDDEN
+        );
+    }
+
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL"]
+    async fn exercise_without_schedule_is_forbidden(pool: PgPool) {
+        let courses = published_courses("statement-unscheduled");
+        assert_eq!(
+            get_statement(&pool, courses, &signed_in(&pool).await, "sum")
+                .await
+                .0,
+            StatusCode::FORBIDDEN
+        );
+    }
+
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL"]
+    async fn unknown_exercise_is_not_found(pool: PgPool) {
+        let courses = published_courses("statement-unknown");
+        assert_eq!(
+            get_statement(&pool, courses, &signed_in(&pool).await, "missing")
+                .await
+                .0,
+            StatusCode::NOT_FOUND
+        );
+    }
+
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL"]
+    async fn path_outside_the_course_is_a_bad_request(pool: PgPool) {
+        let courses = published_courses("statement-escape");
+        assert_eq!(
+            get_statement(&pool, courses, &signed_in(&pool).await, "%2E%2E")
+                .await
+                .0,
+            StatusCode::BAD_REQUEST
+        );
+    }
+
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL"]
+    async fn statement_without_session_is_unauthorized(pool: PgPool) {
+        schedule_sum(&pool, "-1 hour", Some("1 hour")).await;
+        let courses = published_courses("statement-anonymous");
+        assert_eq!(
+            get_statement(&pool, courses, "", "sum").await.0,
+            StatusCode::UNAUTHORIZED
+        );
+    }
+
     #[sqlx::test(migrations = false)]
     #[ignore = "needs PostgreSQL"]
     async fn migrations_apply_once(pool: PgPool) {
@@ -289,7 +458,7 @@ mod tests {
     async fn health_is_ok() {
         let pool = PgPool::connect_lazy("postgres://unused").unwrap();
         let request = Request::get("/health").body(Body::empty()).unwrap();
-        let response = app(pool, Directory::unreachable())
+        let response = app(pool, Directory::unreachable(), PathBuf::new())
             .oneshot(request)
             .await
             .unwrap();

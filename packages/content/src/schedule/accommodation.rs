@@ -16,18 +16,21 @@ pub struct Accommodation {
 
 impl Accommodation {
     pub(super) fn apply(&self, window: Window) -> Window {
-        if window.length().is_zero() {
+        // Modes that apply accomodations are timed: a window without a closing has nothing to extend
+        let Some(length) = window.length().filter(|length| !length.is_zero()) else {
             return window;
-        }
+        };
 
         let extra = match self.extra_time {
-            ExtraTime::Percent(percent) => window.length() * percent / 100,
+            ExtraTime::Percent(percent) => length * percent / 100,
             ExtraTime::Fixed(extra) => extra,
         };
 
         Window {
             opens_at: window.opens_at + self.start_shift,
-            closes_at: window.closes_at + self.start_shift + extra,
+            closes_at: window
+                .closes_at
+                .map(|closes_at| closes_at + self.start_shift + extra),
         }
     }
 }
@@ -35,7 +38,7 @@ impl Accommodation {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::schedule::fixtures::between;
+    use crate::schedule::fixtures::{between, since};
 
     #[test]
     fn fixed_extra_time_only_moves_the_closing() {
@@ -53,5 +56,14 @@ mod tests {
             start_shift: Duration::from_secs(30),
         };
         assert_eq!(accommodation.apply(between(100, 200)), between(130, 240));
+    }
+
+    #[test]
+    fn window_without_closing_is_left_as_is() {
+        let accommodation = Accommodation {
+            extra_time: ExtraTime::Percent(50),
+            start_shift: Duration::from_secs(30),
+        };
+        assert_eq!(accommodation.apply(since(100)), since(100));
     }
 }

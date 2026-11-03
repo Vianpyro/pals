@@ -11,6 +11,13 @@ pub(super) fn at(seconds: u64) -> SystemTime {
 pub(super) fn between(opens: u64, closes: u64) -> Window {
     Window {
         opens_at: at(opens),
-        closes_at: at(closes),
+        closes_at: Some(at(closes)),
+    }
+}
+
+pub(super) fn since(opens: u64) -> Window {
+    Window {
+        opens_at: at(opens),
+        closes_at: None,
     }
 }
