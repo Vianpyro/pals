@@ -862,7 +862,7 @@ SEB mainly controls the environment of the student's computer, while the platfor
 - *Resources.* No CDN: browser runtimes (#ext("pyodide")[Pyodide], #ext("esbuild")[esbuild-wasm], etc.) are served by the platform.
 - *Navigation.* No new windows and no downloads: statements are rendered as HTML or SVG, not PDF. Automatic submission redirects to SEB's "Quit URL".
 - *Recovery.* If SEB is restarted, the student gets their autosaved drafts back, time is computed by the server and the SSE stream resumes using `Last-Event-ID`.
-- *Editor.* Keyboard shortcuts and the clipboard, which SEB may restrict, are tested.
+- *Editor.* Keyboard shortcuts and the clipboard, which SEB may restrict, are tested (#adr("0034")).
 - *Engines.* SEB for Windows relies on Chromium; SEB for macOS and iOS rely on WebKit, where #ext("service-workers")[service workers] are limited. Fallback: the HTTP cache.
 - *Language.* SEB does not pass on a language choice: the interface language is set in the platform itself (#adr("0011")).
 
@@ -1974,6 +1974,9 @@ Several important questions are deliberately left open.
 21. Do ÉTS Moodle spaces match one course group each, or merge several groups? In the first case the LTI context gives the group; in the second, group membership comes from the CSV import (#adr("0020")).
 22. Does Moodle accept #ext("ags")[AGS] grade updates after an activity has closed? Grading and performance measurement finish after the session (#adr("0022")); a locked grade item or a grade overridden in the Moodle gradebook would reject them. To confirm with the ÉTS Moodle administrators.
 23. Where are the content repositories hosted (GitHub, a GitLab at ÉTS), who can push to them, and does the host expose the identity of each push? The publication log relies on it, since a commit's author field can be forged (#adr("0023")).
+24. Which APIs and languages does #course("LOG645") use (OpenMP, MPI, threads; C or C++), how many cores does an exercise need, and is the speedup graded or only the result? #adr("0036") assumes C and C++ with OpenMP and MPI on one judge.
+25. What does "local" completion mean for the instructor: computed in the student's browser, as #adr("0035") assumes, or hosted at ÉTS rather than by a vendor? Is completion allowed in exams?
+26. For the assistant's hints (#adr("0031")): what default cost list, per item or per activity, and may an instructor write some levels by hand instead of the model, which would remove the risk of a leak for those levels?
 
 = Validation methodology <arch-validation-methodology>
 
@@ -2038,6 +2041,7 @@ Courses the platform is designed for, in priority order: LOG200, then LOG121, th
   [#course("LOG210")], [Analyse et conception de logiciels], [Java, TypeScript], [Unit tests],
   [#course("LOG240")], [Tests et maintenance], [Java, TypeScript], [Unit tests, coverage],
   [#course("LOG635")], [Systèmes intelligents et algorithmes], [Python (#ext("numpy")[NumPy])], [Unit tests],
+  [#course("LOG645")], [Architectures de calculs parallèles], [C, C++ with OpenMP and MPI (#adr("0036"))], [Standard I/O, speedup],
   [#course("LOG660")], [Bases de données de haute performance], [SQL], [SQL],
   [#course("GTI350")], [Conception et évaluation des interfaces utilisateurs], [JavaScript], [Unit tests],
   [#course("GTI611")], [Réseaux de communication IP], [C, Python], [Loopback network],

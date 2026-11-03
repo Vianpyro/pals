@@ -43,6 +43,9 @@
   [#adr("0031", body: "0031")], [Comprehension assistant paid in points], [Proposed],
   [#adr("0032", body: "0032")], [Find-and-fix exercises and author checkers], [Proposed],
   [#adr("0033", body: "0033")], [Independent test cases and partial credit], [Proposed],
+  [#adr("0034", body: "0034")], [Code editor], [Proposed],
+  [#adr("0035", body: "0035")], [Completion computed in the browser], [Proposed],
+  [#adr("0036", body: "0036")], [Parallel programming exercises], [Proposed],
 )
 
 Relations declared in the status of each ADR: a solid arrow refines, a thick arrow supersedes, a dotted arrow applies, extends or feeds the ADR it points to. ADRs without a declared relation are not shown.
@@ -54,6 +57,7 @@ Relations declared in the status of each ADR: a solid arrow refines, a thick arr
     A0003[0003 NixOS]
     A0005[0005 Immutable releases]
     A0006[0006 Ubuntu and Ansible]
+    A0007[0007 Performance measurement]
     A0008[0008 Visible tests in the browser]
     A0010[0010 Multiple VMs]
     A0012[0012 Offerings and roles]
@@ -76,6 +80,9 @@ Relations declared in the status of each ADR: a solid arrow refines, a thick arr
     A0031[0031 Comprehension assistant]
     A0032[0032 Find and fix]
     A0033[0033 Independent test cases]
+    A0034[0034 Code editor]
+    A0035[0035 Browser completion]
+    A0036[0036 Parallel programming]
 
     A0006 ==> A0003
     A0010 --> A0001
@@ -122,6 +129,12 @@ Relations declared in the status of each ADR: a solid arrow refines, a thick arr
     A0033 --> A0008
     A0033 --> A0013
     A0033 -.->|extends| A0015
+    A0034 -.->|extends| A0013
+    A0035 -.->|extends| A0013
+    A0035 -.->|extends| A0034
+    A0036 --> A0033
+    A0036 -.->|extends| A0007
+    A0036 -.->|extends| A0013
   ",
   document-context: true,
   width: 100%,
@@ -160,3 +173,6 @@ Relations declared in the status of each ADR: a solid arrow refines, a thick arr
 #include "0031-comprehension-assistant.typ"
 #include "0032-find-and-fix-exercises.typ"
 #include "0033-independent-test-cases.typ"
+#include "0034-code-editor.typ"
+#include "0035-local-completion.typ"
+#include "0036-parallel-programming.typ"

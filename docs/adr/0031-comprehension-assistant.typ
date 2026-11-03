@@ -9,6 +9,8 @@
 
 An instructor asks for a language model that students can question about an exercise, at a cost in points on their grade for each question. The model must help them understand the problem (what the statement asks, what an error message means, why a visible test fails) and never write code for them. It would run on servers hosted by ÉTS, so that no student data leaves the school (#ext("law25")[Law 25]).
 
+A later discussion with the instructor added two requests: hints whose cost rises with each one, set by the instructor (for example 1, 3, then 10 points), and a supervisor that stops an answer that gives the solution away or leaves the exercise's subject.
+
 The constraints already in place:
 
 - The judge is the only reader of assessment data (#arch("double-check-by-the-judge")[architecture]); the API, which faces the Internet, holds only the public projection (#adr("0005")).
@@ -25,9 +27,9 @@ The constraints already in place:
   [No assistant], [Nothing to build or to operate.], [Does not meet the instructor's request.],
   [Commercial API], [Strong models, no hardware.], [Student code and questions leave ÉTS; ruled out by the request and by #ext("law25")[Law 25].],
   [Model at ÉTS, guided by its prompt only], [Simple.], ["Never write code" rests on the model's goodwill.],
-  [Model at ÉTS, public context only, output filtered, every exchange charged and kept],
-  [A bypass cannot reveal hidden data; code in an answer is caught by a deterministic filter; abuse costs points and leaves a trace.],
-  [A filter and a ledger to build; the filter rejects some useful answers.],
+  [Model at ÉTS, public context only, output filtered and supervised, every exchange charged and kept],
+  [A bypass cannot reveal hidden data; code in an answer is caught by a deterministic filter, a given-away answer or an off-topic one by a supervisor; abuse costs points and leaves a trace.],
+  [A filter, a supervisor and a ledger to build; two model calls per question; both checks reject some useful answers.],
 )
 
 === Decision
@@ -38,7 +40,11 @@ The constraints already in place:
 
 *Code in an answer is filtered, not just forbidden.* The prompt asks for explanations, questions and pointers to the statement. Then, before anything is shown, the answer goes through a deterministic filter: a fenced block, an indented block, or a line that parses as code in the exercise's language beyond a short identifier is refused. A refused answer is replaced by a fixed message and is not charged. The filter's rules and the prompt are files in the platform repository, versioned and tested like a grader.
 
-*Each answered question costs points.* The cost is part of the activity mode policy (#adr("0014")), set per item by the instructor; the assistant is off when it is zero, which is the default. It is available in every mode, exams included, where the charges come off the exam's final grade. A charge is final: no later submission, re-grading or re-judging refunds it. Before sending, the student sees the cost and what they have already spent on the item. A charge is a row in an append-only ledger (offering, activity, item, student, time, cost), written in the same transaction as the stored answer: a question that fails, times out or is filtered is not charged. The item's score is its judged score minus the item's charges, never below zero. The judge is not involved, and re-judging leaves the charges unchanged.
+*A supervisor checks what the filter cannot.* The filter does not see an answer that names the right choice of a multiple-choice item, gives the value of a numeric item, spells out a complete algorithm in prose, or has drifted away from the exercise. An answer that passes the filter therefore goes to a second call to the endpoint, with its own fixed prompt. The supervisor receives the public statement, the hint level, the question and the answer, all quoted as data, and returns one label: `ok`, `off-topic` or `solution`. The request asks the endpoint for structured output limited to these labels, and any other output counts as a refusal. Only `ok` shows the answer; otherwise the student gets a fixed message saying that the question is outside the exercise or asks for its answer, and nothing is charged. The supervisor's prompt is versioned and tested with the filter. Like the assistant, it can be bypassed by a determined student; it is a second barrier, not a proof, and its misses are visible in the review below.
+
+*Hints come in levels whose cost rises.* The $n$#super[th] answered question on an item is its hint level $n$. The instructor sets, per item, the list of level costs, for example 1, 3 and 10 points; an activity may set a default list for its items. The length of the list is the number of hints the item allows, and an empty list, the default, turns the assistant off. The prompt receives the level and the number of levels: the first rephrases the statement or points to the part that matters, the middle ones name the concept or the visible case at fault, the last describes the approach in words. No level allows code or the expected answer.
+
+*Each answered question costs its level.* The costs are part of the activity mode policy (#adr("0014")). The assistant is available in every mode, exams included, where the charges come off the exam's final grade. A charge is final: no later submission, re-grading or re-judging refunds it. Before sending, the student sees the next level's cost, what they have already spent on the item and how many hints remain. A charge is a row in an append-only ledger (offering, activity, item, student, time, level, cost), written in the same transaction as the stored answer: a question that fails, times out, is filtered or is stopped by the supervisor is not charged and does not use up a level. The item's score is its judged score minus the item's charges, never below zero. The judge is not involved, and re-judging leaves the charges unchanged.
 
 #mermaid(
   "
@@ -47,14 +53,16 @@ The constraints already in place:
     participant A as API
     participant M as Model at ÉTS
     B->>A: question on an item
-    A->>A: mode allows it, nothing in flight for this student
-    A->>M: public statement, student code, visible results, question
+    A->>A: mode allows it, a level remains, nothing in flight for this student
+    A->>M: public statement, student code, visible results, level, question
     M-->>A: answer
     A->>A: code filter
-    alt answer kept
+    A->>M: supervisor: statement, level, question, answer
+    M-->>A: ok, off-topic or solution
+    alt filter passed and supervisor ok
       A->>A: store exchange and ledger row, one transaction
       A-->>B: answer, points spent on the item
-    else filtered, failed or timed out
+    else filtered, stopped, failed or timed out
       A->>A: store exchange, no ledger row
       A-->>B: fixed message, nothing charged
     end
@@ -63,20 +71,22 @@ The constraints already in place:
   width: 100%,
 )
 
-*Capacity is bounded and the assistant may be missing.* A student has at most one question in flight. The API limits concurrent requests to the endpoint and gives up after a timeout. When the endpoint is down, the button says so, and the rest of the activity works as before. Exam capacity is never planned on the assistant.
+*Capacity is bounded and the assistant may be missing.* A question costs up to two model calls; the supervisor may use a smaller model at the same endpoint, set by an `admin`. A student has at most one question in flight. The API limits concurrent requests to the endpoint and gives up after a timeout. When the endpoint is down, the button says so, and the rest of the activity works as before. Exam capacity is never planned on the assistant.
 
-*Every exchange is stored for review.* Each question gets one row in #ext("postgresql")[PostgreSQL], filtered, failed and timed-out ones included: the request exactly as sent to the model (student code at that moment included), the model's raw answer, what the student was shown, the outcome (shown, filtered, failed, timed out), the versions of the prompt and of the filter, the model's name as reported by the endpoint, and the cost charged. Rows are never updated. The instructors and TAs of the offering can review them per student, per item or per activity, next to the student's submissions, to check after the fact how the assistant was used and what it said. A raw answer stopped by the filter is shown to them, never to the student.
+*Every exchange is stored for review.* Each question gets one row in #ext("postgresql")[PostgreSQL], filtered, failed and timed-out ones included: the request exactly as sent to the model (student code at that moment included), the model's raw answer, the supervisor's raw output, what the student was shown, the outcome (shown, filtered, off-topic, solution, failed, timed out), the hint level, the versions of the prompts and of the filter, the names of the models as reported by the endpoint, and the cost charged. Rows are never updated. The instructors and TAs of the offering can review them per student, per item or per activity, next to the student's submissions, to check after the fact how the assistant was used and what it said. A raw answer stopped by the filter or the supervisor is shown to them, never to the student.
 
 *Conversations are personal data.* They are purged with the offering (#adr("0012")), like submissions. Students are told next to the button that their questions and the answers are kept and read by the teaching team. The model answers in the interface language (#adr("0011")).
 
 === Consequences
 
 - The instructor gets the requested assistant without the model ever holding a hidden test or a solution.
-- The filter rejects some legitimate answers that quote a line of the student's own code. This is accepted; the message invites the student to rephrase, at no cost.
+- The filter rejects some legitimate answers that quote a line of the student's own code, and the supervisor some answers it judges too close to the solution. This is accepted; the message invites the student to rephrase, at no cost.
+- A rising cost makes the last hints a deliberate choice: with 1, 3 and 10 points, the third hint can cost more than a small item is worth, and the item's score stops at zero.
+- Inference doubles per question. The concurrency limit applies to both calls.
 - The grade of an item now depends on the ledger as well as on the verdict; grade export (#ext("ags")[AGS]) reads both.
 - Inference capacity, the choice of model and its updates belong to ÉTS. A model change can alter answers; the prompt and the filter tests are run again against it.
 - Under #ext("seb")[Safe Exam Browser], the assistant is part of the platform's origin and needs no extra allowance.
 
 #validation(id: "V-0031")[
-  A test fails if the request builder can receive any field of the private part. A set of adversarial questions and statements asking for code, in French and English, yields no answer that reaches the student with code beyond the filter's threshold. A filtered, failed or timed-out question leaves no ledger row; an answered question leaves exactly one, even after a client retry. Every question, whatever its outcome, leaves one stored exchange that an instructor of the offering can read and that no one outside the offering can. With the endpoint stopped, an exam is taken end to end. Under the exam load test, measure the 95#super[th] percentile of answer time with the concurrency limit in place.
+  A test fails if the request builder can receive any field of the private part. A set of adversarial questions and statements asking for code, in French and English, yields no answer that reaches the student with code beyond the filter's threshold. On multiple-choice and numeric items, questions asking for the answer reach the student only when the supervisor says `ok`, and that rate is measured; off-topic questions are stopped. With costs 1, 3 and 10, three answered questions charge 14 points in that order and a fourth is refused before any model call. A filtered, stopped, failed or timed-out question leaves no ledger row and uses no level; an answered question leaves exactly one, even after a client retry. A supervisor output outside the three labels stops the answer. Every question, whatever its outcome, leaves one stored exchange that an instructor of the offering can read and that no one outside the offering can. With the endpoint stopped, an exam is taken end to end. Under the exam load test, measure the 95#super[th] percentile of answer time with the concurrency limit in place.
 ]
