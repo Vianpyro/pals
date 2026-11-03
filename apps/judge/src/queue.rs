@@ -1,6 +1,9 @@
 //! Jobs claimed from the PostgreSQL queue (ADR-0001)
 
-use sqlx::{PgConnection, types::Uuid};
+use sqlx::{
+    PgConnection,
+    types::{Uuid, time::OffsetDateTime},
+};
 
 use crate::Verdict;
 
@@ -12,6 +15,7 @@ pub struct Job {
     pub exercise: String,
     pub language_pack: String,
     pub source: String,
+    pub enqueued_at: OffsetDateTime,
 }
 
 pub async fn claim(connection: &mut PgConnection) -> sqlx::Result<Option<Job>> {
@@ -25,7 +29,8 @@ pub async fn claim(connection: &mut PgConnection) -> sqlx::Result<Option<Job>> {
                 course AS "course!: String",
                 exercise AS "exercise!: String",
                 language_pack AS "language_pack!: String",
-                source AS "source!"
+                source AS "source!",
+                enqueued_at AS "enqueued_at!"
             FROM claim_job()
         "#
     )

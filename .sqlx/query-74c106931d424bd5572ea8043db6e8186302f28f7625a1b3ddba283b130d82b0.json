@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                id AS \"id!\",\n                contract AS \"contract!\",\n                course AS \"course!: String\",\n                exercise AS \"exercise!: String\",\n                language_pack AS \"language_pack!: String\",\n                source AS \"source!\"\n            FROM claim_job()\n        ",
+  "query": "\n            SELECT\n                id AS \"id!\",\n                contract AS \"contract!\",\n                course AS \"course!: String\",\n                exercise AS \"exercise!: String\",\n                language_pack AS \"language_pack!: String\",\n                source AS \"source!\",\n                enqueued_at AS \"enqueued_at!\"\n            FROM claim_job()\n        ",
   "describe": {
     "columns": [
       {
@@ -38,6 +38,12 @@
         "name": "source!",
         "type_info": "Text",
         "origin": "Expression"
+      },
+      {
+        "ordinal": 6,
+        "name": "enqueued_at!",
+        "type_info": "Timestamptz",
+        "origin": "Expression"
       }
     ],
     "parameters": {
@@ -49,8 +55,9 @@
       null,
       null,
       null,
+      null,
       null
     ]
   },
-  "hash": "57b3d874af8b332d007f9670037a6a7c17f2e7977ec900128fca25142979af67"
+  "hash": "74c106931d424bd5572ea8043db6e8186302f28f7625a1b3ddba283b130d82b0"
 }

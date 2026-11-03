@@ -11,5 +11,6 @@ CREATE TABLE schedules (
     CONSTRAINT schedules_closes_after_opening CHECK (closes_at > opens_at)
 );
 
--- API: reads the schedule on every access to an activity
+-- API and Judge: read the schedule on every access to an activity
 GRANT SELECT ON schedules TO api;
+GRANT SELECT ON schedules TO judge;

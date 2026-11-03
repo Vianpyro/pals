@@ -8,7 +8,8 @@ RETURNS TABLE (
     course identifier,
     exercise identifier,
     language_pack identifier,
-    source text
+    source text,
+    enqueued_at timestamptz
 )
 LANGUAGE sql SECURITY DEFINER SET search_path = pg_catalog, pg_temp
 BEGIN ATOMIC
@@ -24,7 +25,7 @@ BEGIN ATOMIC
         WHERE j.state = 'waiting'
         ORDER BY j.enqueued_at, j.id LIMIT 1 FOR UPDATE SKIP LOCKED
     )
-    RETURNING jobs.id, jobs.contract, jobs.course, jobs.exercise, jobs.language_pack, jobs.source;
+    RETURNING jobs.id, jobs.contract, jobs.course, jobs.exercise, jobs.language_pack, jobs.source, jobs.enqueued_at;
 END;
 
 REVOKE EXECUTE ON FUNCTION claim_job() FROM PUBLIC;

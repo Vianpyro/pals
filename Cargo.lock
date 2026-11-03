@@ -799,6 +799,8 @@ dependencies = [
 name = "judge"
 version = "0.1.38"
 dependencies = [
+ "content",
+ "contracts",
  "sqlx",
  "tokio",
 ]
