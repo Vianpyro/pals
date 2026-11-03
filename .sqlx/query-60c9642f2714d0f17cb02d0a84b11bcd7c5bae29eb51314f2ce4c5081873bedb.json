@@ -1,0 +1,41 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT opens_at, closes_at FROM schedules WHERE course = $1::text AND activity = $2::text",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "opens_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "schedules",
+            "name": "opens_at"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "closes_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "schedules",
+            "name": "closes_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      true
+    ]
+  },
+  "hash": "60c9642f2714d0f17cb02d0a84b11bcd7c5bae29eb51314f2ce4c5081873bedb"
+}

@@ -3,10 +3,9 @@
 use std::{
     env,
     error::Error,
-    fs, io,
+    fs,
     path::{self, PathBuf},
     sync::Arc,
-    time::SystemTime,
 };
 
 use axum::{
@@ -15,7 +14,6 @@ use axum::{
     http::{HeaderName, StatusCode, header},
     routing::{get, post},
 };
-use content::accessible_exercise;
 use contracts::Id;
 use directory::{Directory, Identity, SignInError};
 use serde::{Deserialize, Serialize};
@@ -24,6 +22,7 @@ use sqlx::{PgPool, migrate::Migrator};
 use uuid::Uuid;
 
 mod directory;
+mod gate;
 mod schedule;
 mod session;
 
@@ -132,24 +131,8 @@ async fn statement(
     State(courses): State<Arc<path::Path>>,
     Path((course, exercise)): Path<(Id, Id)>,
 ) -> Result<String, StatusCode> {
-    let schedule = schedule::read(&pool, &course, &exercise)
-        .await
-        .map_err(|error| {
-            eprintln!("api: schedule: {error}");
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
-
-    let course_dir = courses.join(course.as_str());
-    accessible_exercise(&course_dir, &exercise, &schedule, SystemTime::now())
-        .and_then(|dir| fs::read_to_string(dir.join("statement.md")))
-        .map_err(|error| match error.kind() {
-            io::ErrorKind::NotFound => StatusCode::NOT_FOUND,
-            io::ErrorKind::PermissionDenied => StatusCode::FORBIDDEN,
-            _ => {
-                eprintln!("api: statement: {error}");
-                StatusCode::INTERNAL_SERVER_ERROR
-            }
-        })
+    let dir = gate::open_exercise(&pool, &courses, &course, &exercise).await?;
+    fs::read_to_string(dir.join("statement.md")).map_err(gate::status_of)
 }
 
 #[derive(Deserialize)]
@@ -168,11 +151,14 @@ struct Submitted {
 async fn submit(
     Account(author): Account,
     State(pool): State<PgPool>,
+    State(courses): State<Arc<path::Path>>,
     Json(submission): Json<Submission>,
 ) -> Result<(StatusCode, Json<Submitted>), StatusCode> {
     if submission.source.is_empty() || submission.source.len() > MAX_SOURCE {
         return Err(StatusCode::UNPROCESSABLE_ENTITY);
     }
+    gate::open_exercise(&pool, &courses, &submission.course, &submission.exercise).await?;
+
     let id = sqlx::query_scalar!(
         r#"
         INSERT INTO jobs (contract, course, exercise, language_pack, source, author)
@@ -265,13 +251,18 @@ mod tests {
             .unwrap()
     }
 
-    async fn post_submission(pool: &PgPool, cookie: &str, body: &'static str) -> StatusCode {
+    async fn post_submission(
+        pool: &PgPool,
+        courses: PathBuf,
+        cookie: &str,
+        body: &'static str,
+    ) -> StatusCode {
         let request = Request::post("/submissions")
             .header(header::CONTENT_TYPE, "application/json")
             .header(header::COOKIE, cookie)
             .body(Body::from(body))
             .unwrap();
-        app(pool.clone(), Directory::unreachable(), PathBuf::new())
+        app(pool.clone(), Directory::unreachable(), courses)
             .oneshot(request)
             .await
             .unwrap()
@@ -360,6 +351,37 @@ mod tests {
             .await
             .unwrap();
         assert!(finished);
+    }
+
+    async fn open_sum(pool: &PgPool, name: &str) -> PathBuf {
+        schedule_sum(pool, "-1 hour", Some("1 hour")).await;
+        published_courses(name)
+    }
+
+    #[tokio::test]
+    async fn health_is_ok() {
+        let pool = PgPool::connect_lazy("postgres://unused").unwrap();
+        let request = Request::get("/health").body(Body::empty()).unwrap();
+        let response = app(pool, Directory::unreachable(), PathBuf::new())
+            .oneshot(request)
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn empty_password_is_unauthorized() {
+        let pool = PgPool::connect_lazy("postgres://unused").unwrap();
+        let body = r#"{"id": "etudiant1", "password": ""}"#;
+        let response = sign_in_with(&pool, Directory::unreachable(), body).await;
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn unreachable_directory_is_unavailable() {
+        let pool = PgPool::connect_lazy("postgres://unused").unwrap();
+        let response = sign_in_with(&pool, Directory::unreachable(), RIGHT_PASSWORD).await;
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
     }
 
     #[sqlx::test(migrations = "../../db/migrations")]
@@ -454,38 +476,18 @@ mod tests {
         assert_eq!(waiting_jobs(&pool).await, 0);
     }
 
-    #[tokio::test]
-    async fn health_is_ok() {
-        let pool = PgPool::connect_lazy("postgres://unused").unwrap();
-        let request = Request::get("/health").body(Body::empty()).unwrap();
-        let response = app(pool, Directory::unreachable(), PathBuf::new())
-            .oneshot(request)
-            .await
-            .unwrap();
-        assert_eq!(response.status(), StatusCode::OK);
-    }
-
-    #[tokio::test]
-    async fn empty_password_is_unauthorized() {
-        let pool = PgPool::connect_lazy("postgres://unused").unwrap();
-        let body = r#"{"id": "etudiant1", "password": ""}"#;
-        let response = sign_in_with(&pool, Directory::unreachable(), body).await;
-        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
-    }
-
-    #[tokio::test]
-    async fn unreachable_directory_is_unavailable() {
-        let pool = PgPool::connect_lazy("postgres://unused").unwrap();
-        let response = sign_in_with(&pool, Directory::unreachable(), RIGHT_PASSWORD).await;
-        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
-    }
-
     #[sqlx::test(migrations = "../../db/migrations")]
     #[ignore = "needs PostgreSQL"]
     async fn submission_is_queued(pool: PgPool) {
         let body = r#"{"course": "log200", "exercise": "sum", "language_pack": "python", "source": "print(0)"}"#;
         assert_eq!(
-            post_submission(&pool, &signed_in(&pool).await, body).await,
+            post_submission(
+                &pool,
+                open_sum(&pool, "submission-queued").await,
+                &signed_in(&pool).await,
+                body
+            )
+            .await,
             StatusCode::ACCEPTED
         );
         assert_eq!(waiting_jobs(&pool).await, 1);
@@ -496,7 +498,7 @@ mod tests {
     async fn invalid_identifier_is_rejected(pool: PgPool) {
         let body = r#"{"course": "log200", "exercise": "../sum", "language_pack": "python", "source": "print(0)"}"#;
         assert_eq!(
-            post_submission(&pool, &signed_in(&pool).await, body).await,
+            post_submission(&pool, PathBuf::new(), &signed_in(&pool).await, body).await,
             StatusCode::UNPROCESSABLE_ENTITY
         );
         assert_eq!(waiting_jobs(&pool).await, 0);
@@ -508,7 +510,7 @@ mod tests {
         let body =
             r#"{"course": "log200", "exercise": "sum", "language_pack": "python", "source": ""}"#;
         assert_eq!(
-            post_submission(&pool, &signed_in(&pool).await, body).await,
+            post_submission(&pool, PathBuf::new(), &signed_in(&pool).await, body).await,
             StatusCode::UNPROCESSABLE_ENTITY
         );
         assert_eq!(waiting_jobs(&pool).await, 0);
@@ -540,7 +542,13 @@ mod tests {
         let body = r#"{"course": "log200", "exercise": "sum", "language_pack": "python", "source": "print(0)"}"#;
         let cookie = signed_in_as(&pool, "etudiant2").await;
         assert_eq!(
-            post_submission(&pool, &cookie, body).await,
+            post_submission(
+                &pool,
+                open_sum(&pool, "submission-author").await,
+                &cookie,
+                body
+            )
+            .await,
             StatusCode::ACCEPTED
         );
         let author: String = sqlx::query_scalar("SELECT author FROM jobs")
@@ -603,7 +611,7 @@ mod tests {
     async fn submission_without_session_is_unauthorized(pool: PgPool) {
         let body = r#"{"course": "log200", "exercise": "sum", "language_pack": "python", "source": "print(0)"}"#;
         assert_eq!(
-            post_submission(&pool, "", body).await,
+            post_submission(&pool, PathBuf::new(), "", body).await,
             StatusCode::UNAUTHORIZED
         );
         assert_eq!(waiting_jobs(&pool).await, 0);
@@ -620,7 +628,7 @@ mod tests {
 
         let body = r#"{"course": "log200", "exercise": "sum", "language_pack": "python", "source": "print(0)"}"#;
         assert_eq!(
-            post_submission(&pool, &cookie, body).await,
+            post_submission(&pool, PathBuf::new(), &cookie, body).await,
             StatusCode::UNAUTHORIZED
         );
         assert_eq!(waiting_jobs(&pool).await, 0);
@@ -632,7 +640,13 @@ mod tests {
         let cookie = format!("theme=dark; {}", signed_in(&pool).await);
         let body = r#"{"course": "log200", "exercise": "sum", "language_pack": "python", "source": "print(0)"}"#;
         assert_eq!(
-            post_submission(&pool, &cookie, body).await,
+            post_submission(
+                &pool,
+                open_sum(&pool, "submission-cookie").await,
+                &cookie,
+                body
+            )
+            .await,
             StatusCode::ACCEPTED
         );
         assert_eq!(waiting_jobs(&pool).await, 1);
@@ -671,5 +685,30 @@ mod tests {
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
         assert!(!response.headers().contains_key(header::SET_COOKIE));
         assert_eq!(sessions(&pool).await, 0);
+    }
+
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL"]
+    async fn submission_to_a_closed_exercise_is_forbidden(pool: PgPool) {
+        schedule_sum(&pool, "-2 hours", Some("-1 hour")).await;
+        let courses = published_courses("submission-closed");
+        let body = r#"{"course": "log200", "exercise": "sum", "language_pack": "python", "source": "print(0)"}"#;
+        assert_eq!(
+            post_submission(&pool, courses, &signed_in(&pool).await, body).await,
+            StatusCode::FORBIDDEN
+        );
+        assert_eq!(waiting_jobs(&pool).await, 0);
+    }
+
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL"]
+    async fn submission_to_an_unpublished_exercise_is_not_found(pool: PgPool) {
+        let courses = published_courses("submission-unpublished");
+        let body = r#"{"course": "log200", "exercise": "missing", "language_pack": "python", "source": "print(0)"}"#;
+        assert_eq!(
+            post_submission(&pool, courses, &signed_in(&pool).await, body).await,
+            StatusCode::NOT_FOUND
+        );
+        assert_eq!(waiting_jobs(&pool).await, 0);
     }
 }
