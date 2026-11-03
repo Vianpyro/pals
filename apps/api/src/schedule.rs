@@ -5,6 +5,21 @@ use contracts::Id;
 use sqlx::PgPool;
 
 // An activity without a row gets no window: closed by default
-pub(super) async fn read(pool: &pgPool, course: &Id, activity: &Id) -> sqlx::Result<Schedule> {
-    todo!()
+pub(super) async fn read(pool: &PgPool, course: &Id, activity: &Id) -> sqlx::Result<Schedule> {
+    let offering = sqlx::query!(
+        "SELECT opens_at, closes_at FROM schedules WHERE course = $1::text AND activity = $2::text",
+        course.as_str(),
+        activity.as_str()
+    )
+    .fetch_optional(pool)
+    .await?
+    .map(|row| Window {
+        opens_at: row.opens_at.into(),
+        closes_at: row.closes_at.map(Into::into),
+    });
+
+    Ok(Schedule {
+        offering,
+        ..Default::default()
+    })
 }

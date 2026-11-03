@@ -52,7 +52,7 @@ mod tests {
         let schedule = Schedule {
             offering: Some(Window {
                 opens_at: UNIX_EPOCH,
-                closes_at: UNIX_EPOCH + Duration::from_mins(1),
+                closes_at: Some(UNIX_EPOCH + Duration::from_mins(1)),
             }),
             ..Default::default()
         };
