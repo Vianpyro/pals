@@ -1,6 +1,12 @@
-# P.A.L.S - Programming Assessment and Learning System
+# P.A.L.S. — Programming Assessment and Learning System
 
-A platform where students write, run and submit code that is judged in an isolated sandbox, built first for LOG200 at ÉTS. The architecture, the ADRs and the project plan are published at <https://vianpyro.github.io/pals/>; their sources are in [`docs/`](docs/).
+**A modular, self-hostable platform for programming education and automated code assessment.**
+
+PALS provides an environment where students can write, execute and submit programming exercises, with submissions evaluated in isolated sandboxes. Built in Rust, it separates the web platform, assessment infrastructure and course-specific content into independent components.
+
+Originally developed for [LOG200 at ÉTS](https://www.etsmtl.ca/), PALS aims to provide a reusable foundation for programming courses, supporting multiple programming languages, customizable exercises and automated evaluation workflows.
+
+The architecture, Architecture Decision Records (ADRs) and project roadmap are publicly documented at <https://vianpyro.github.io/pals/>.
 
 ## Getting started
 
