@@ -65,7 +65,11 @@ mod tests {
 
     async fn enqueue(pool: &PgPool) -> Uuid {
         sqlx::query_scalar(
-            "INSERT INTO jobs (contract, course, exercise, language_pack, source) VALUES (1, 'log200', 'sum', 'python', 'print(0)') RETURNING id",
+            r#"
+                INSERT INTO jobs (contract, course, exercise, language_pack, source, author)
+                VALUES (1, 'log200', 'sum', 'python', 'print(0)', 'etudiant1')
+                RETURNING id
+            "#,
         )
         .fetch_one(pool)
         .await

@@ -16,6 +16,7 @@ CREATE TABLE jobs (
     course identifier NOT NULL,
     exercise identifier NOT NULL,
     language_pack identifier NOT NULL, -- (ADR-0013)
+    author text NOT NULL CHECK (author <> ''), -- (ADR-0017)
     source text NOT NULL CHECK (octet_length(source) BETWEEN 1 and 1024*1024),
     state job_state NOT NULL DEFAULT 'waiting',
     enqueued_at timestamptz NOT NULL DEFAULT now(),

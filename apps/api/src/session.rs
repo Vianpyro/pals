@@ -40,9 +40,7 @@ pub(super) async fn account(pool: &PgPool, token: &str) -> sqlx::Result<Option<S
 }
 
 /// The signed-in account; a route that takes it refuses requests without a live session
-pub(super) struct Account(
-    #[expect(dead_code, reason = "read once jobs record their author")] pub(super) String,
-);
+pub(super) struct Account(pub(super) String);
 
 impl FromRequestParts<AppState> for Account {
     type Rejection = StatusCode;

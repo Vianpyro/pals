@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT state::text AS \"state!\", (result -> 'cases') <@ '[\"passed\"]' AS \"passed?\"\n            FROM jobs WHERE id = $1\n        ",
+  "query": "\n            SELECT state::text AS \"state!\", (result -> 'cases') <@ '[\"passed\"]' AS \"passed?\"\n            FROM jobs WHERE id = $1 AND author = $2\n        ",
   "describe": {
     "columns": [
       {
@@ -18,7 +18,8 @@
     ],
     "parameters": {
       "Left": [
-        "Uuid"
+        "Uuid",
+        "Text"
       ]
     },
     "nullable": [
@@ -26,5 +27,5 @@
       null
     ]
   },
-  "hash": "ae560a409a672b7bb78d39620cfb7ca1b9cbf3d66181add21a72dccebdbfb785"
+  "hash": "34643c3ce2e21b8eded515b555c194c5b9587f559be3769e680f6642f8d78296"
 }

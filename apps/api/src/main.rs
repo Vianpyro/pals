@@ -118,7 +118,7 @@ struct Submitted {
 }
 
 async fn submit(
-    _account: Account,
+    Account(author): Account,
     State(pool): State<PgPool>,
     Json(submission): Json<Submission>,
 ) -> Result<(StatusCode, Json<Submitted>), StatusCode> {
@@ -127,15 +127,16 @@ async fn submit(
     }
     let id = sqlx::query_scalar!(
         r#"
-        INSERT INTO jobs (contract, course, exercise, language_pack, source)
-        VALUES ($1, $2::text, $3::text, $4::text, $5)
+        INSERT INTO jobs (contract, course, exercise, language_pack, source, author)
+        VALUES ($1, $2::text, $3::text, $4::text, $5, $6)
         RETURNING id AS "id!"
         "#,
         CONTRACT,
         submission.course.as_str(),
         submission.exercise.as_str(),
         submission.language_pack.as_str(),
-        submission.source
+        submission.source,
+        author
     )
     .fetch_one(&pool)
     .await
@@ -153,17 +154,19 @@ struct Progress {
 }
 
 async fn progress(
-    _account: Account,
+    Account(author): Account,
     State(pool): State<PgPool>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Progress>, StatusCode> {
+    // Someone else's job is not found rather than forbidden: a 403 would confirm it exists
     let progress = sqlx::query_as!(
         Progress,
         r#"
             SELECT state::text AS "state!", (result -> 'cases') <@ '["passed"]' AS "passed?"
-            FROM jobs WHERE id = $1
+            FROM jobs WHERE id = $1 AND author = $2
         "#,
-        id
+        id,
+        author
     )
     .fetch_optional(&pool)
     .await
@@ -196,7 +199,11 @@ mod tests {
     }
 
     async fn signed_in(pool: &PgPool) -> String {
-        let token = session::open(pool, "etudiant1").await.unwrap();
+        signed_in_as(pool, "etudiant1").await
+    }
+
+    async fn signed_in_as(pool: &PgPool, account: &str) -> String {
+        let token = session::open(pool, account).await.unwrap();
         format!("{}={token}", session::COOKIE)
     }
 
@@ -245,7 +252,11 @@ mod tests {
 
     async fn enqueue(pool: &PgPool) -> Uuid {
         sqlx::query_scalar(
-            "INSERT INTO jobs (contract, course, exercise, language_pack, source) VALUES (1, 'log200', 'sum', 'python', 'print(0)') RETURNING id",
+            r#"
+                INSERT INTO jobs (contract, course, exercise, language_pack, source, author)
+                VALUES (1, 'log200', 'sum', 'python', 'print(0)', 'etudiant1')
+                RETURNING id
+            "#,
         )
         .fetch_one(pool)
         .await
@@ -350,6 +361,33 @@ mod tests {
     async fn unknown_submission_is_not_found(pool: PgPool) {
         assert_eq!(
             get_submission(&pool, &signed_in(&pool).await, &Uuid::nil().to_string()).await,
+            (StatusCode::NOT_FOUND, String::new())
+        );
+    }
+
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL"]
+    async fn submission_records_its_author(pool: PgPool) {
+        let body = r#"{"course": "log200", "exercise": "sum", "language_pack": "python", "source": "print(0)"}"#;
+        let cookie = signed_in_as(&pool, "etudiant2").await;
+        assert_eq!(
+            post_submission(&pool, &cookie, body).await,
+            StatusCode::ACCEPTED
+        );
+        let author: String = sqlx::query_scalar("SELECT author FROM jobs")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(author, "etudiant2");
+    }
+
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL"]
+    async fn someone_elses_submission_is_not_found(pool: PgPool) {
+        let job = enqueue(&pool).await;
+        let cookie = signed_in_as(&pool, "etudiant2").await;
+        assert_eq!(
+            get_submission(&pool, &cookie, &job.to_string()).await,
             (StatusCode::NOT_FOUND, String::new())
         );
     }
