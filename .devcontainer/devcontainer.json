@@ -5,31 +5,38 @@
   "runServices": ["dev", "postgres", "ldap", "ldap-seed", "web"],
   "workspaceFolder": "/workspaces/LOG791",
   "features": {
-    // A dockerd inside the container, where runsc can be registered (see Dockerfile).
-    // Docker CE rather than Moby, which is not packaged for Debian trixie.
+    // dockerd for runsc (see Dockerfile); Docker CE, as Moby has no trixie package
     "ghcr.io/devcontainers/features/docker-in-docker:4": { "moby": false },
     "ghcr.io/devcontainers/features/github-cli:1": {},
-    // Same version as rust-toolchain.toml, which rustup reads; otherwise a second toolchain is installed.
+    // Same as rust-toolchain.toml, or rustup installs a second toolchain
     "ghcr.io/devcontainers/features/rust:1": { "version": "1.99.1" }
   },
-  // VS Code tunnels these to localhost; Zed publishes them through Docker on every host interface
-  // (zed-industries/zed#62760), so lldap's admin page is reachable from the local network there
+  // Zed publishes these on every host interface (zed-industries/zed#62760)
   "forwardPorts": ["web:80", 8001, "ldap:17170"],
   "portsAttributes": {
     "web:80": { "label": "Web (page + API)" },
     "8001": { "label": "Admin" },
     "ldap:17170": { "label": "lldap (admin / pals-admin)" }
   },
-  // Dependencies are fetched once per build; builds go to CARGO_TARGET_DIR, outside the bind mount.
-  // The commit-msg hook is enabled in .git/config, shared with the host.
-  // sqlx-cli migrates the dev database; its version is the sqlx crate's, read from Cargo.lock
-  // (cargo pkgid prints "registry+…#sqlx@0.9.0").
-  "postCreateCommand": "cargo fetch --locked && cargo install sqlx-cli --locked --version \"$(cargo pkgid sqlx | cut -d@ -f2)\" --no-default-features --features postgres && git config core.hooksPath .githooks",
+  // sqlx-cli at Cargo.lock's sqlx version; safe.directory since the mount is root's (Zed doesn't add it);
+  // GitHub credentials from gh in any editor, '' drops the helpers set before
+  "postCreateCommand": "cargo fetch --locked && cargo install sqlx-cli --locked --version \"$(cargo pkgid sqlx | cut -d@ -f2)\" --no-default-features --features postgres && git config --global --add safe.directory /workspaces/LOG791 && git config core.hooksPath .githooks && git config --global --replace-all credential.https://github.com.helper '' && git config --global --add credential.https://github.com.helper '!gh auth git-credential'",
   "postStartCommand": "bash .devcontainer/check.sh",
   "customizations": {
-    // Same tools as the VS Code list; Zed ships Rust support
+    // The VS Code tools, plus languages VS Code has built in and Zed lacks
     "zed": {
-      "extensions": ["ansible", "crates-lsp", "docker-compose", "dockerfile", "toml", "typst"]
+      "extensions": [
+        "ansible",
+        "crates-lsp",
+        "docker-compose",
+        "dockerfile",
+        "git-firefly",
+        "html",
+        "nginx",
+        "sql",
+        "toml",
+        "typst"
+      ]
     },
     "vscode": {
       "extensions": [
