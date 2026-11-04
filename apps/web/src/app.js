@@ -31,6 +31,14 @@ const STATES = {
     replaced: "Remplacée par une soumission plus récente.",
 };
 
+// A run as the student reads it, live or in their history
+function verdict({ state, passed }) {
+    if (state === "done") {
+        return passed ? "Réussi : tous les tests passent." : "Échoué : au moins un test ne passe pas.";
+    }
+    return STATES[state] ?? state;
+}
+
 const element = (id) => document.getElementById(id);
 const say = (text) => {
     element("status").textContent = text;
@@ -113,6 +121,28 @@ async function openExercise(exercise) {
     current = exercise;
     say("");
     element("exercise").hidden = false;
+    await showHistory();
+}
+
+function run(entry) {
+    const li = document.createElement("li");
+    li.textContent = `${when(entry.enqueued_at)} — ${verdict(entry)}`;
+    return li;
+}
+
+async function showHistory() {
+    const path = `/courses/${encodeURIComponent(course)}/exercises/${encodeURIComponent(current)}/submissions`;
+    const response = await call("GET", path);
+    if (response.status === 401) {
+        show("sign-in");
+        return;
+    }
+    // Emptied on error too: the list of the exercise shown before must not stay under this one
+    const runs = response.ok ? await response.json() : [];
+    if (!response.ok) {
+        say(`Historique indisponible (erreur ${response.status}).`);
+    }
+    element("history").replaceChildren(...runs.map(run));
 }
 
 // shortcut: polls every second, until verdicts arrive over SSE (architecture, Web application)
@@ -123,13 +153,9 @@ async function follow(id) {
             say(`Erreur ${response.status}.`);
             return;
         }
-        const { state, passed } = await response.json();
-        if (state === "done") {
-            say(passed ? "Réussi : tous les tests passent." : "Échoué : au moins un test ne passe pas.");
-            return;
-        }
-        say(STATES[state] ?? state);
-        if (state !== "waiting" && state !== "running") {
+        const progress = await response.json();
+        say(verdict(progress));
+        if (progress.state !== "waiting" && progress.state !== "running") {
             return;
         }
         await sleep(POLL_MS);
@@ -184,6 +210,7 @@ element("submission").addEventListener("submit", async (event) => {
         }
         const { id } = await response.json();
         await follow(id);
+        await showHistory();
     } finally {
         button.disabled = false;
     }
