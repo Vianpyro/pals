@@ -12,7 +12,7 @@ The architecture, Architecture Decision Records (ADRs) and project roadmap are p
 
 The server code is a Cargo workspace in Rust 1.99.1 (ADR-0025), pinned by [`rust-toolchain.toml`](rust-toolchain.toml). Everything runs in the dev container: Rust, PostgreSQL, a local LDAP directory, Docker with gVisor, Typst and Ansible.
 
-1. Open the repository in VS Code and choose **Reopen in Container** (Docker required).
+1. Open the repository in VS Code and choose **Reopen in Container**, or in Zed and choose **Open in Container** (Docker required).
 2. Wait for the first build. It fetches the crates (`cargo fetch`), then `check.sh` prints one line per service; every line should read `ok`.
 3. Run the checks CI runs: `cargo clippy --all-targets`, `cargo test` and `bash tests/architecture/boundaries.sh`.
 
@@ -27,6 +27,8 @@ Common commands are VS Code tasks (**Tasks: Run Task**):
 | `docs: build site` | Build every document into `_site/` |
 | `db: psql` | Open a shell on the local database |
 | `gvisor: sandbox shell` | A shell in a gVisor sandbox with no network |
+
+In Zed, the same tasks are under **task: spawn** ([`.zed/tasks.json`](.zed/tasks.json)). Zed has no task that runs on folder open, so run `demo: start` yourself; the page is then at <http://localhost/>. `docs: watch` is one task per document, and `ldap: find user` searches the selected text.
 
 Test accounts for the local directory are in [`.devcontainer/ldap/`](.devcontainer/ldap/); the lldap admin interface is forwarded on port 17170.
 

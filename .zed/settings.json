@@ -1,0 +1,12 @@
+// The Zed side of .vscode/settings.json
+{
+  "ensure_final_newline_on_save": true,
+  "remove_trailing_whitespace_on_save": true,
+  // Only where both editors run the same formatter: Zed's Prettier would rewrite the JS, HTML and YAML
+  // that VS Code's built-in formatters leave alone
+  "format_on_save": "off",
+  "languages": {
+    "Rust": { "format_on_save": "on" },
+    "TOML": { "format_on_save": "on" }
+  }
+}

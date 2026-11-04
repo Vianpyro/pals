@@ -18,14 +18,19 @@
             <button>Se connecter</button>
         </form>
 
-        <section id="exercise" hidden>
+        <section id="course" hidden>
             <button id="sign-out" type="button">Se déconnecter</button>
-            <pre id="statement"></pre>
-            <form id="submission">
-                <label for="source">Code Python</label><br>
-                <textarea id="source" rows="15" cols="80" spellcheck="false" required></textarea><br>
-                <button>Soumettre</button>
-            </form>
+            <h2>Exercices</h2>
+            <ul id="catalog"></ul>
+
+            <section id="exercise" hidden>
+                <pre id="statement"></pre>
+                <form id="submission">
+                    <label for="source">Code Python</label><br>
+                    <textarea id="source" rows="15" cols="80" spellcheck="false" required></textarea><br>
+                    <button>Soumettre</button>
+                </form>
+            </section>
         </section>
 
         <p id="status" role="status"></p>

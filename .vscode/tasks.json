@@ -1,5 +1,6 @@
 {
   // Meant to run inside the dev container, where the tools and services exist.
+  // .zed/tasks.json holds the same tasks for Zed: keep both lists in step.
   "version": "2.0.0",
   "tasks": [
     {

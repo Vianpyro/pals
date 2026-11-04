@@ -12,6 +12,8 @@
     // Same version as rust-toolchain.toml, which rustup reads; otherwise a second toolchain is installed.
     "ghcr.io/devcontainers/features/rust:1": { "version": "1.99.1" }
   },
+  // VS Code tunnels these to localhost; Zed publishes them through Docker on every host interface
+  // (zed-industries/zed#62760), so lldap's admin page is reachable from the local network there
   "forwardPorts": ["web:80", 8001, "ldap:17170"],
   "portsAttributes": {
     "web:80": { "label": "Web (page + API)" },
@@ -25,6 +27,10 @@
   "postCreateCommand": "cargo fetch --locked && cargo install sqlx-cli --locked --version \"$(cargo pkgid sqlx | cut -d@ -f2)\" --no-default-features --features postgres && git config core.hooksPath .githooks",
   "postStartCommand": "bash .devcontainer/check.sh",
   "customizations": {
+    // Same tools as the VS Code list; Zed ships Rust support
+    "zed": {
+      "extensions": ["ansible", "crates-lsp", "docker-compose", "dockerfile", "toml", "typst"]
+    },
     "vscode": {
       "extensions": [
         "fill-labs.dependi",

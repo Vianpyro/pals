@@ -1,0 +1,66 @@
+// The Zed side of .vscode/tasks.json: keep both lists in step.
+// Meant to run inside the dev container, where the tools and services exist.
+// Zed has no "run on folder open" nor prompts: start the demo by hand, one docs: watch task per document.
+[
+  {
+    "label": "demo: start",
+    "command": "bash .devcontainer/demo.sh"
+  },
+  {
+    "label": "env: check",
+    "command": "bash .devcontainer/check.sh"
+  },
+  {
+    "label": "rust: check",
+    "command": "cargo fmt --check && SQLX_OFFLINE=true cargo clippy --locked --all-targets -- -D warnings && cargo test"
+  },
+  {
+    "label": "db: prepare queries",
+    "command": "cargo sqlx prepare --workspace -- --all-targets"
+  },
+  {
+    "label": "db: reset",
+    "command": "sqlx database reset --source db/migrations -y"
+  },
+  {
+    "label": "architecture: check",
+    "command": "bash tests/architecture/boundaries.sh"
+  },
+  {
+    "label": "docs: build site",
+    "command": "sh site/build.sh"
+  },
+  {
+    "label": "docs: watch architecture",
+    "command": "typst watch --root . docs/pdf/architecture.typ _site/watch.pdf"
+  },
+  {
+    "label": "docs: watch adr",
+    "command": "typst watch --root . docs/pdf/adr.typ _site/watch.pdf"
+  },
+  {
+    "label": "docs: watch project plan",
+    "command": "typst watch --root . docs/pdf/project-plan.typ _site/watch.pdf"
+  },
+  {
+    "label": "docs: watch report",
+    "command": "typst watch --root . report/main.typ _site/watch.pdf"
+  },
+  {
+    "label": "ansible: lint",
+    "command": "ansible-lint infrastructure/ansible"
+  },
+  {
+    "label": "db: psql",
+    "command": "psql \"$DATABASE_URL\""
+  },
+  {
+    // Searches the selected text, otherwise etudiant1
+    "label": "ldap: find user",
+    "command": "ldapsearch -x -H \"$LDAP_URL\" -D \"$LDAP_BIND_DN\" -w \"$LDAP_BIND_PASSWORD\" -b \"$LDAP_BASE_DN\" \"($LDAP_USER_ATTRIBUTE=${ZED_SELECTED_TEXT:etudiant1})\""
+  },
+  {
+    "label": "gvisor: sandbox shell",
+    "command": "docker run --rm -it --runtime=runsc --network=none python:3.14-alpine sh"
+  }
+]
