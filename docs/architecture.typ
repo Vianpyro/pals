@@ -1032,6 +1032,8 @@ exercises/<id>/
 ├── statement.md       or statement.typ, never both
 ├── public/            templates handed to the student
 └── assessment/        tests, cases, judge configuration (private)
+    ├── visible/       cases shown with expected and actual output (ADR-0030)
+    └── hidden/        cases never detailed, only whether one fails (ADR-0008)
 
 bank/<id>.json         a non-code item: public part and private key
 exams/<id>.json        mode, sections, slots (fixed item or pool draw), points
