@@ -2,7 +2,7 @@
   "name": "LOG791",
   "dockerComposeFile": "compose.yml",
   "service": "dev",
-  "runServices": ["dev", "postgres", "ldap", "ldap-seed", "web"],
+  "runServices": ["dev", "postgres", "ldap", "ldap-seed", "tls", "web"],
   "workspaceFolder": "/workspaces/LOG791",
   "features": {
     // dockerd for runsc (see Dockerfile); Docker CE, as Moby has no trixie package
@@ -12,9 +12,9 @@
     "ghcr.io/devcontainers/features/rust:1": { "version": "1.99.1" }
   },
   // Zed publishes these on every host interface (zed-industries/zed#62760)
-  "forwardPorts": ["web:80", 5173, 8001, "ldap:17170"],
+  "forwardPorts": [80, 5173, 8001, "ldap:17170"],
   "portsAttributes": {
-    "web:80": { "label": "Web (page + API)" },
+    "80": { "label": "Web (page + API)" },
     "5173": { "label": "Web dev server (no CSP)" },
     "8001": { "label": "Admin" },
     "ldap:17170": { "label": "lldap (admin / pals-admin)" }

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Starts the demo behind the page at web:80: the example course published, its exercise open,
+# Starts the demo behind the page at localhost:80: the example course published, its exercise open,
 # the API and the judge running. Safe to rerun; Ctrl+C stops both.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -18,7 +18,7 @@ done
 docker image inspect "$image" >/dev/null 2>&1 || docker pull -q "$image" >/dev/null
 
 cargo build -p api -p judge -p publisher
-# The page nginx serves at web:80
+# The page nginx serves at localhost:80
 npm run build -w apps/web
 
 rm -rf "$demo"
@@ -35,5 +35,5 @@ psql -q -v ON_ERROR_STOP=1 "$DATABASE_URL" -c "
 trap 'trap - EXIT INT TERM HUP; kill 0' EXIT INT TERM HUP
 COURSES="$demo/courses" "$bin/api" &
 CONTENT="$demo/content" COURSES="$demo/courses" "$bin/judge" &
-echo "Démo prête : onglet Ports → web:80 (etudiant1 / log791-dev)"
+echo "Démo prête : onglet Ports → 80 (etudiant1 / log791-dev)"
 wait -n

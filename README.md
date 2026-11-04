@@ -20,7 +20,7 @@ Common commands are VS Code tasks (**Tasks: Run Task**):
 
 | Task | What it does |
 |------|--------------|
-| `demo: start` | Runs on folder open: the example course behind the page (**Ports** → `web:80`) |
+| `demo: start` | Runs on folder open: the example course behind the page (**Ports** → `80`) |
 | `rust: check` | Format, Clippy and tests, as CI does |
 | `architecture: check` | Check component boundaries in the crate graph, as CI does |
 | `env: check` | Check that every local service answers |

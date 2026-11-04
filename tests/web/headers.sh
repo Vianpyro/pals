@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # Checks the headers nginx sends for each kind of response (spec D20, D21): an nginx location that
 # sets its own add_header drops the server's, so a page could lose its CSP with nothing visibly broken.
-# Usage: bash tests/web/headers.sh [base URL]; from the dev container, the default reaches the web service.
+# Usage: bash tests/web/headers.sh [base URL]; from the dev container, the default reaches nginx.
+# -k: the dev certificate is self-signed, and this checks headers, not certificates.
 set -u
 
-base=${1:-http://web}
+base=${1:-http://localhost}
 csp="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
 failed=0
 
@@ -12,7 +13,7 @@ failed=0
 # and the security headers
 expect() {
   local path=$1 status=$2 cache=$3 headers
-  headers=$(curl -s -o /dev/null -D - "$base$path" | tr -d '\r')
+  headers=$(curl -sk -o /dev/null -D - "$base$path" | tr -d '\r')
   local problems=()
   [ "$status" = any ] || [[ $headers == "HTTP/1.1 $status"* ]] || problems+=("status $(head -1 <<<"$headers")")
   grep -qxF "Content-Security-Policy: $csp" <<<"$headers" || problems+=("CSP")
@@ -31,7 +32,7 @@ expect() {
   fi
 }
 
-page=$(curl -s "$base/")
+page=$(curl -sk "$base/")
 asset=$(grep -o '/assets/[^"]*\.js' <<<"$page" | head -1)
 if [ -z "$asset" ]; then
   echo "FAIL  / links no /assets/ script: build apps/web first (npm run build -w apps/web)"

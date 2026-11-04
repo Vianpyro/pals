@@ -5,7 +5,7 @@
   "tasks": [
     {
       "label": "demo: start",
-      "detail": "Publish the example course and run the API and the judge behind the page (Ports → web:80)",
+      "detail": "Publish the example course and run the API and the judge behind the page (Ports → 80)",
       "type": "shell",
       "command": "bash .devcontainer/demo.sh",
       "isBackground": true,
