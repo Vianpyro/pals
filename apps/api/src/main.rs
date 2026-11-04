@@ -170,6 +170,37 @@ async fn submit(
     }
     gate::open_exercise(&pool, &courses, &submission.course, &submission.exercise).await?;
 
+    let id = enqueue_replacing(&pool, &author, &submission)
+        .await
+        .map_err(|error| {
+            eprintln!("api: enqueue: {error}");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    Ok((StatusCode::ACCEPTED, Json(Submitted { id })))
+}
+
+// At most one run in progress per student: a newer one replaces the run still waiting (ADR-0008, ADR-0030)
+async fn enqueue_replacing(
+    pool: &PgPool,
+    author: &str,
+    submission: &Submission,
+) -> sqlx::Result<Uuid> {
+    let mut transaction = pool.begin().await?;
+
+    sqlx::query!(
+        "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
+        author
+    )
+    .execute(&mut *transaction)
+    .await?;
+
+    sqlx::query!(
+        "UPDATE jobs SET state = 'replaced', finished_at = now() WHERE author = $1 AND state = 'waiting'",
+        author
+    )
+    .execute(&mut *transaction).await?;
+
     let id = sqlx::query_scalar!(
         r#"
         INSERT INTO jobs (contract, course, exercise, language_pack, source, author)
@@ -183,13 +214,11 @@ async fn submit(
         submission.source,
         author
     )
-    .fetch_one(&pool)
-    .await
-    .map_err(|error| {
-        eprintln!("api: enqueue: {error}");
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
-    Ok((StatusCode::ACCEPTED, Json(Submitted { id })))
+    .fetch_one(&mut *transaction)
+    .await?;
+
+    transaction.commit().await?;
+    Ok(id)
 }
 
 #[derive(Serialize)]
@@ -234,6 +263,7 @@ mod tests {
 
     const RIGHT_PASSWORD: &str = r#"{"id": "etudiant1", "password": "log791-dev"}"#;
     const WRONG_PASSWORD: &str = r#"{"id": "etudiant1", "password": "wrong"}"#;
+    const SUM: &str = r#"{"course": "log200", "exercise": "sum", "language_pack": "python", "source": "print(0)"}"#;
 
     async fn sign_in_with(pool: &PgPool, directory: Directory, body: &'static str) -> Response {
         let request = Request::post("/sessions")
@@ -776,5 +806,61 @@ mod tests {
             sign_out_with(&pool, &cookie).await.status(),
             StatusCode::NO_CONTENT
         );
+    }
+
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL"]
+    async fn new_submission_replaces_the_waiting_one(pool: PgPool) {
+        let previous = enqueue(&pool).await;
+        let cookie = signed_in(&pool).await;
+        let courses = open_sum(&pool, "submission-replaces").await;
+        assert_eq!(
+            post_submission(&pool, courses, &cookie, SUM).await,
+            StatusCode::ACCEPTED
+        );
+        assert_eq!(
+            get_submission(&pool, &cookie, &previous.to_string()).await,
+            (
+                StatusCode::OK,
+                r#"{"state":"replaced","passed":null}"#.to_string()
+            )
+        );
+        assert_eq!(waiting_jobs(&pool).await, 1);
+    }
+
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL"]
+    async fn running_submission_is_not_replaced(pool: PgPool) {
+        let previous = enqueue(&pool).await;
+        sqlx::query("SELECT id FROM claim_job()")
+            .execute(&pool)
+            .await
+            .unwrap();
+        let cookie = signed_in(&pool).await;
+        let courses = open_sum(&pool, "submission-running").await;
+        assert_eq!(
+            post_submission(&pool, courses, &cookie, SUM).await,
+            StatusCode::ACCEPTED
+        );
+        assert_eq!(
+            get_submission(&pool, &cookie, &previous.to_string()).await,
+            (
+                StatusCode::OK,
+                r#"{"state":"running","passed":null}"#.to_string()
+            )
+        );
+    }
+
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL"]
+    async fn other_students_waiting_submission_stays(pool: PgPool) {
+        enqueue(&pool).await;
+        let cookie = signed_in_as(&pool, "etudiant2").await;
+        let courses = open_sum(&pool, "submission-other-student").await;
+        assert_eq!(
+            post_submission(&pool, courses, &cookie, SUM).await,
+            StatusCode::ACCEPTED
+        );
+        assert_eq!(waiting_jobs(&pool).await, 2);
     }
 }
