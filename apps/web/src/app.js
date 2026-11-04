@@ -13,6 +13,7 @@ const SIGN_IN_ERRORS = {
 const STATEMENT_ERRORS = {
     403: "Cet exercice n'est pas ouvert.",
     404: "Cet exercice n'existe pas.",
+    502: "Le serveur démarre ou ne répond pas : réessayez dans un instant.",
 };
 const SUBMISSION_ERRORS = {
     ...STATEMENT_ERRORS,
