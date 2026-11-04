@@ -464,6 +464,12 @@ It is also the only privileged process, and it receives hostile input: student c
 
 Speed is not the reason: the dominant cost of a submission is expected in sandbox startup and compilation, not in the orchestrator (see #arch("cache")[Cache]).
 
+The web interface runs in the browser, so it is written apart from the server code.
+
+#decision(id: "ADR-0037")[
+  The web interface is written in #ext("svelte")[Svelte 5] and #ext("typescript")[TypeScript], built by #ext("vite")[Vite] into static files that nginx serves. Node is only used to build them; the VMs run no JavaScript runtime.
+]
+
 = Submission isolation <arch-submission-isolation>
 
 == Problem <arch-problem>
@@ -1643,7 +1649,7 @@ apps/
 ├── api/              axum: sign-in, sessions, offerings, submissions, SSE
 ├── judge/            pulls jobs, runs the sandbox, writes the verdict
 ├── publisher/        validation, projection, releases, pointer; typst/ template
-└── web/              static interface served by nginx; locales/ (en, fr)
+└── web/              Svelte interface built by Vite, served by nginx; locales/ (en, fr)
 db/migrations/        PostgreSQL schema: queue, offerings, sessions, submissions
 examples/content/     fake content repository for development
 infrastructure/
