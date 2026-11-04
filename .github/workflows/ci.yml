@@ -14,9 +14,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # The same environment as locally: PostgreSQL, LDAP and gVisor, checked by check.sh.
+  # The same environment as locally: PostgreSQL, LDAP, gVisor and nginx, checked by check.sh.
   # Ignored tests need these services: they run here.
   # The queries are checked against the migrated schema; .sqlx/ must match it.
+  # nginx's headers are checked on the built page; the web image build (images.yml) runs the web checks.
   devcontainer:
     runs-on: ubuntu-latest
     steps:
@@ -25,7 +26,7 @@ jobs:
       - uses: devcontainers/ci@v0.3
         with:
           push: never
-          runCmd: bash .devcontainer/check.sh && bash tests/queries/check.sh && cargo test --locked -- --ignored
+          runCmd: bash .devcontainer/check.sh && bash tests/queries/check.sh && cargo test --locked -- --ignored && npm run build -w apps/web && bash tests/web/headers.sh
 
   # The runner's rustup installs the toolchain of rust-toolchain.toml on first use.
   # No PostgreSQL here: query! macros read .sqlx/, written by cargo sqlx prepare.

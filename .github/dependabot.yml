@@ -15,9 +15,12 @@ updates:
     commit-message: { prefix: build, include: scope }
 
   - package-ecosystem: docker
-    directory: /.devcontainer
+    directories: [/.devcontainer, /apps/web]
     schedule: { interval: weekly }
     commit-message: { prefix: build, include: scope }
+    # Node is the same version in both Dockerfiles: one pull request moves both
+    groups:
+      node: { patterns: [node] }
 
   - package-ecosystem: docker-compose
     directory: /.devcontainer
@@ -32,6 +35,16 @@ updates:
     commit-message: { prefix: build, include: scope }
     groups:
       tools: { patterns: ["*"] }
+
+  # A release waits a week before it is proposed: time for a compromised one to be caught and
+  # pulled, since its code ends up in the exam page (spec D8)
+  - package-ecosystem: npm
+    directory: /
+    schedule: { interval: weekly }
+    cooldown: { default-days: 7 }
+    commit-message: { prefix: build, include: scope }
+    groups:
+      packages: { patterns: ["*"] }
 
   - package-ecosystem: cargo
     directory: /
