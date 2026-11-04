@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>P.A.L.S.</title>
+    <script src="app.js" defer></script>
+</head>
+
+<body>
+    <main>
+        <h1>P.A.L.S.</h1>
+
+        <form id="sign-in" hidden>
+            <label>Identifiant <input name="id" autocomplete="username" required></label>
+            <label>Mot de passe <input name="password" type="password" autocomplete="current-password" required></label>
+            <button>Se connecter</button>
+        </form>
+
+        <section id="exercise" hidden>
+            <button id="sign-out" type="button">Se déconnecter</button>
+            <pre id="statement"></pre>
+            <form id="submission">
+                <label for="source">Code Python</label><br>
+                <textarea id="source" rows="15" cols="80" spellcheck="false" required></textarea><br>
+                <button>Soumettre</button>
+            </form>
+        </section>
+
+        <p id="status" role="status"></p>
+    </main>
+</body>
+
+</html>
