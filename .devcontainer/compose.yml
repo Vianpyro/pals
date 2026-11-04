@@ -64,11 +64,13 @@ services:
         condition: service_healthy
     restart: "no"
 
-  # The page and the API on one origin, as nginx does in production
+  # The page and the API on one origin, as nginx does in production.
+  # apps/web, not apps/web/dist: Docker would create a missing dist/ as root, and the build could not write it.
   web:
     image: nginx:1.31.8-alpine
     volumes:
-      - ../apps/web/src:/srv/web:ro
+      - ../apps/web:/srv/app:ro
       - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ../infrastructure/ansible/roles/nginx/files:/etc/nginx/snippets:ro
     depends_on:
       - dev
