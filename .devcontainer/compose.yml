@@ -8,6 +8,8 @@ services:
     command: sleep infinity
     volumes:
       - ..:/workspaces/LOG791:cached
+      # Thousands of small files: slow on the bind mount, like the Cargo target below
+      - node_modules:/workspaces/LOG791/node_modules
     environment:
       # Outside the bind mount: many small files there are slow under Docker Desktop,
       # and builds from the host would invalidate the container's.
@@ -74,3 +76,6 @@ services:
       - ../infrastructure/ansible/roles/nginx/files:/etc/nginx/snippets:ro
     depends_on:
       - dev
+
+volumes:
+  node_modules:

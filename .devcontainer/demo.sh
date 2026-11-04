@@ -18,6 +18,8 @@ done
 docker image inspect "$image" >/dev/null 2>&1 || docker pull -q "$image" >/dev/null
 
 cargo build -p api -p judge -p publisher
+# The page nginx serves at web:80
+npm run build -w apps/web
 
 rm -rf "$demo"
 mkdir -p "$demo/content" "$demo/courses/log200"

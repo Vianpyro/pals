@@ -50,6 +50,9 @@ check "typst" 1 typst --version
 check "ansible" 1 ansible --version
 check "ansible-lint" 1 ansible-lint --version
 check "cargo" 1 cargo --version
+check "node" 1 node --version
+# node_modules matches package-lock.json (npm ci in postCreateCommand)
+check "web: dependencies" 1 npm ls --all
 check "gh" 1 gh --version
 
 if [ "$failed" -ne 0 ]; then

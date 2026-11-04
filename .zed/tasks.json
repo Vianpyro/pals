@@ -15,6 +15,14 @@
     "command": "cargo fmt --check && SQLX_OFFLINE=true cargo clippy --locked --all-targets -- -D warnings && cargo test"
   },
   {
+    "label": "web: dev",
+    "command": "npm run dev -w apps/web"
+  },
+  {
+    "label": "web: check",
+    "command": "npm run check -w apps/web && npm test -w apps/web && npm run build -w apps/web && npm run budget -w apps/web && bash tests/web/headers.sh"
+  },
+  {
     "label": "db: prepare queries",
     "command": "cargo sqlx prepare --workspace -- --all-targets"
   },

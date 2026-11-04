@@ -1,5 +1,9 @@
 # Development image: tools only, no application code or dependencies.
-# Dependabot updates the FROM line and requirements.txt; the ARG below is updated by hand.
+# Dependabot updates the FROM lines and requirements.txt; the ARG below is updated by hand.
+
+# Node for the web interface: same version as apps/web/Dockerfile, which Dependabot updates with this one
+FROM node:26.13.0-trixie-slim AS node
+
 FROM mcr.microsoft.com/devcontainers/python:3.15-trixie
 
 # Also read by .github/workflows/pages.yml: the HTML export changes between versions.
@@ -21,6 +25,11 @@ RUN mkdir -p /etc/docker \
 
 RUN curl -fsSL "https://github.com/typst/typst/releases/download/v${TYPST_VERSION}/typst-x86_64-unknown-linux-musl.tar.xz" \
     | tar -xJ --strip-components=1 -C /usr/local/bin typst-x86_64-unknown-linux-musl/typst
+
+COPY --from=node /usr/local/bin/node /usr/local/bin/node
+COPY --from=node /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/npm
+RUN ln -s ../lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
+    && ln -s ../lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx
 
 COPY requirements.txt /tmp/requirements.txt
 RUN pip install --no-cache-dir -r /tmp/requirements.txt && rm /tmp/requirements.txt

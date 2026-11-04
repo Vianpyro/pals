@@ -1,5 +1,7 @@
 {
     "editor.formatOnSave": true,
+    // Zed formats nothing but Rust and TOML on save (.zed/settings.json): Svelte's Prettier would make the editors disagree
+    "[svelte]": { "editor.formatOnSave": false },
     "files.insertFinalNewline": true,
     "files.trimFinalNewlines": true,
     "files.trimTrailingWhitespace": true

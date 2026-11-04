@@ -12,15 +12,17 @@
     "ghcr.io/devcontainers/features/rust:1": { "version": "1.99.1" }
   },
   // Zed publishes these on every host interface (zed-industries/zed#62760)
-  "forwardPorts": ["web:80", 8001, "ldap:17170"],
+  "forwardPorts": ["web:80", 5173, 8001, "ldap:17170"],
   "portsAttributes": {
     "web:80": { "label": "Web (page + API)" },
+    "5173": { "label": "Web dev server (no CSP)" },
     "8001": { "label": "Admin" },
     "ldap:17170": { "label": "lldap (admin / pals-admin)" }
   },
   // sqlx-cli at Cargo.lock's sqlx version; safe.directory since the mount is root's (Zed doesn't add it);
-  // GitHub credentials from gh in any editor, '' drops the helpers set before
-  "postCreateCommand": "cargo fetch --locked && cargo install sqlx-cli --locked --version \"$(cargo pkgid sqlx | cut -d@ -f2)\" --no-default-features --features postgres && git config --global --add safe.directory /workspaces/LOG791 && git config core.hooksPath .githooks && git config --global --replace-all credential.https://github.com.helper '' && git config --global --add credential.https://github.com.helper '!gh auth git-credential'",
+  // GitHub credentials from gh in any editor, '' drops the helpers set before;
+  // node_modules is a volume Docker creates as root; Playwright's browsers match the lockfile's version
+  "postCreateCommand": "cargo fetch --locked && cargo install sqlx-cli --locked --version \"$(cargo pkgid sqlx | cut -d@ -f2)\" --no-default-features --features postgres && git config --global --add safe.directory /workspaces/LOG791 && git config core.hooksPath .githooks && git config --global --replace-all credential.https://github.com.helper '' && git config --global --add credential.https://github.com.helper '!gh auth git-credential' && sudo chown vscode: node_modules && npm ci && npx playwright install --with-deps chromium webkit",
   "postStartCommand": "bash .devcontainer/check.sh",
   "customizations": {
     // The VS Code tools, plus languages VS Code has built in and Zed lacks
@@ -34,6 +36,7 @@
         "html",
         "nginx",
         "sql",
+        "svelte",
         "toml",
         "typst"
       ]
@@ -42,9 +45,11 @@
       "extensions": [
         "fill-labs.dependi",
         "ms-azuretools.vscode-containers",
+        "ms-playwright.playwright",
         "myriad-dreamin.tinymist",
         "redhat.ansible",
         "rust-lang.rust-analyzer",
+        "svelte.svelte-vscode",
         "tamasfe.even-better-toml"
       ]
     }
