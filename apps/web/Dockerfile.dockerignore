@@ -1,0 +1,8 @@
+# The build context is the repository root: send only what the web build reads
+*
+!package.json
+!package-lock.json
+!.npmrc
+!apps/web/
+apps/web/node_modules/
+apps/web/dist/
