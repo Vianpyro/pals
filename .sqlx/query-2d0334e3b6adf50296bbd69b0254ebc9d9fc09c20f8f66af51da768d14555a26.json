@@ -1,0 +1,61 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT id AS \"id!\", state::text AS \"state!\", passed, enqueued_at AS \"enqueued_at!\"\n            FROM runs\n            WHERE author = $1 AND course = $2::text AND exercise = $3::text\n            ORDER BY enqueued_at DESC, id DESC\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "runs",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "state!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 2,
+        "name": "passed",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "runs",
+            "name": "passed"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "enqueued_at!",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "runs",
+            "name": "enqueued_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      true,
+      null,
+      true,
+      true
+    ]
+  },
+  "hash": "2d0334e3b6adf50296bbd69b0254ebc9d9fc09c20f8f66af51da768d14555a26"
+}

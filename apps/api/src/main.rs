@@ -24,6 +24,7 @@ use uuid::Uuid;
 mod catalog;
 mod directory;
 mod gate;
+mod runs;
 mod schedule;
 mod session;
 
@@ -87,6 +88,10 @@ fn app(pool: PgPool, directory: Directory, courses: PathBuf) -> Router {
         .route(
             "/courses/{course}/exercises/{exercise}/statement",
             get(statement),
+        )
+        .route(
+            "/courses/{course}/exercises/{exercise}/submissions",
+            get(runs::history),
         )
         .route("/health", get(|| async { StatusCode::OK }))
         .route("/sessions", post(sign_in).delete(sign_out))
@@ -238,8 +243,8 @@ async fn progress(
     let progress = sqlx::query_as!(
         Progress,
         r#"
-            SELECT state::text AS "state!", (result -> 'cases') <@ '["passed"]' AS "passed?"
-            FROM jobs WHERE id = $1 AND author = $2
+            SELECT state::text AS "state!", passed AS "passed?"
+            FROM runs WHERE id = $1 AND author = $2
         "#,
         id,
         author
@@ -391,6 +396,27 @@ mod tests {
         .fetch_one(pool)
         .await
         .unwrap()
+    }
+
+    async fn enqueue_at(pool: &PgPool, author: &str, exercise: &str, at: &str) -> Uuid {
+        sqlx::query_scalar(
+            r#"
+                INSERT INTO jobs (contract, course, exercise, language_pack, source, author, enqueued_at)
+                VALUES (1, 'log200', $1, 'python', 'print(0)', $2, $3::timestamptz)
+                RETURNING id
+            "#,
+        )
+        .bind(exercise)
+        .bind(author)
+        .bind(at)
+        .fetch_one(pool)
+        .await
+        .unwrap()
+    }
+
+    async fn get_history(pool: &PgPool, cookie: &str) -> (StatusCode, String) {
+        let router = app(pool.clone(), Directory::unreachable(), PathBuf::new());
+        fetch(router, cookie, "/courses/log200/exercises/sum/submissions").await
     }
 
     async fn judge(pool: &PgPool, job: Uuid, verdicts: &str) {
@@ -919,5 +945,45 @@ mod tests {
                 .0,
             StatusCode::NOT_FOUND
         );
+    }
+
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL"]
+    async fn history_lists_own_runs_newest_first(pool: PgPool) {
+        let older = enqueue_at(&pool, "etudiant1", "sum", "2026-01-01T08:00:00Z").await;
+        judge(&pool, older, "{passed,wrong-answer}").await;
+        let newer = enqueue_at(&pool, "etudiant1", "sum", "2026-01-01T09:00:00Z").await;
+
+        assert_eq!(
+            get_history(&pool, &signed_in(&pool).await).await,
+            (
+                StatusCode::OK,
+                format!(
+                    concat!(
+                        r#"[{{"id":"{newer}","state":"waiting","passed":null,"enqueued_at":"2026-01-01T09:00:00Z"}},"#,
+                        r#"{{"id":"{older}","state":"done","passed":false,"enqueued_at":"2026-01-01T08:00:00Z"}}]"#
+                    ),
+                    newer = newer,
+                    older = older
+                )
+            )
+        );
+    }
+
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL"]
+    async fn history_leaves_out_other_students_and_exercises(pool: PgPool) {
+        enqueue_at(&pool, "etudiant2", "sum", "2026-01-01T08:00:00Z").await;
+        enqueue_at(&pool, "etudiant1", "product", "2026-01-01T08:00:00Z").await;
+        assert_eq!(
+            get_history(&pool, &signed_in(&pool).await).await,
+            (StatusCode::OK, "[]".to_string())
+        );
+    }
+
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL"]
+    async fn history_without_session_is_unauthorized(pool: PgPool) {
+        assert_eq!(get_history(&pool, "").await.0, StatusCode::UNAUTHORIZED);
     }
 }

@@ -19,8 +19,9 @@
     "command": "cargo sqlx prepare --workspace -- --all-targets"
   },
   {
+    // -f: rust-analyzer's sqlx macros keep connections open
     "label": "db: reset",
-    "command": "sqlx database reset --source db/migrations -y"
+    "command": "sqlx database reset --source db/migrations -y -f"
   },
   {
     "label": "architecture: check",

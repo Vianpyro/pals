@@ -37,7 +37,8 @@
       "label": "db: reset",
       "detail": "Drop the dev database and apply every migration again, after editing an applied one",
       "type": "shell",
-      "command": "sqlx database reset --source db/migrations -y",
+      // -f: rust-analyzer's sqlx macros keep connections open
+      "command": "sqlx database reset --source db/migrations -y -f",
       "problemMatcher": []
     },
     {
