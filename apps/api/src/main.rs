@@ -21,6 +21,7 @@ use session::Account;
 use sqlx::{PgPool, migrate::Migrator};
 use uuid::Uuid;
 
+mod catalog;
 mod directory;
 mod gate;
 mod schedule;
@@ -82,6 +83,7 @@ fn app(pool: PgPool, directory: Directory, courses: PathBuf) -> Router {
         courses: Arc::from(courses),
     };
     Router::new()
+        .route("/courses/{course}/exercises", get(catalog::catalog))
         .route(
             "/courses/{course}/exercises/{exercise}/statement",
             get(statement),
@@ -862,5 +864,60 @@ mod tests {
             StatusCode::ACCEPTED
         );
         assert_eq!(waiting_jobs(&pool).await, 2);
+    }
+
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL"]
+    async fn catalog_lists_open_and_locked_exercises(pool: PgPool) {
+        sqlx::query("INSERT INTO schedules VALUES ('log200', 'sum', '2000-01-01T00:00:00Z', NULL)")
+            .execute(&pool)
+            .await
+            .unwrap();
+        let courses = published_courses("catalog");
+        fs::create_dir_all(courses.join("log200/releases/abc123/exercises/product")).unwrap();
+
+        let router = app(pool.clone(), Directory::unreachable(), courses);
+        let cookie = signed_in(&pool).await;
+        assert_eq!(
+            fetch(router, &cookie, "/courses/log200/exercises").await,
+            (
+                StatusCode::OK,
+                concat!(
+                    r#"[{"id":"product","open":false,"opens_at":null,"closes_at":null},"#,
+                    r#"{"id":"sum","open":true,"opens_at":"2000-01-01T00:00:00Z","closes_at":null}]"#
+                )
+                .to_string()
+            )
+        );
+    }
+
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL"]
+    async fn catalog_without_session_is_unauthorized(pool: PgPool) {
+        let router = app(
+            pool,
+            Directory::unreachable(),
+            published_courses("catalog-anonymous"),
+        );
+        assert_eq!(
+            fetch(router, "", "/courses/log200/exercises").await.0,
+            StatusCode::UNAUTHORIZED
+        );
+    }
+
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL"]
+    async fn catalog_of_an_unknown_course_is_not_found(pool: PgPool) {
+        let router = app(
+            pool.clone(),
+            Directory::unreachable(),
+            published_courses("catalog-unknown"),
+        );
+        assert_eq!(
+            fetch(router, &signed_in(&pool).await, "/courses/log121/exercises")
+                .await
+                .0,
+            StatusCode::NOT_FOUND
+        );
     }
 }

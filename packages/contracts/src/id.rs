@@ -2,9 +2,9 @@
 
 use std::{error::Error, fmt, str::FromStr};
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Deserialize, Serialize)]
 #[serde(try_from = "String")]
 pub struct Id(String);
 
