@@ -1,0 +1,23 @@
+{
+  "name": "@log791/web",
+  "private": true,
+  "type": "module",
+  "//": "shortcut: check fails on warnings (a11y included, spec D12) only once a .svelte file exists, since svelte-check warns about an empty project; keep only the then-branch with the first component",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "check": "if find src -name \"*.svelte\" | grep -q .; then svelte-check --fail-on-warnings; else svelte-check; fi",
+    "test": "node --test \"scripts/*.test.js\"",
+    "budget": "node scripts/size-budget.js dist index.html=50"
+  },
+  "dependencies": {
+    "svelte": "5.57.3"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "7.3.1",
+    "@tsconfig/svelte": "5.0.8",
+    "svelte-check": "4.7.7",
+    "typescript": "6.0.3",
+    "vite": "8.3.5"
+  }
+}

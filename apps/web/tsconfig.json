@@ -1,0 +1,10 @@
+{
+  "extends": "@tsconfig/svelte/tsconfig.json",
+  "compilerOptions": {
+    "strict": true,
+    "noEmit": true,
+    "types": ["svelte"]
+  },
+  // src/app.js is the plain page that the Svelte rewrite replaces (spec D14): not type-checked
+  "include": ["src/**/*.ts", "src/**/*.svelte"]
+}

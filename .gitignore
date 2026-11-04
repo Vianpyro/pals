@@ -1,2 +1,4 @@
 _site/
 target/
+node_modules/
+apps/web/dist/
