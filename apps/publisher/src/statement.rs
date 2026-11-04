@@ -23,17 +23,17 @@ pub fn statement(exercise: &Path) -> io::Result<PathBuf> {
             Err(error) => return Err(error),
         }
     }
-    let [statement] = found.as_slice() else {
-        return Err(io::Error::new(
+    match <[PathBuf; 1]>::try_from(found) {
+        Ok([statement]) => Ok(statement),
+        Err(found) => Err(io::Error::new(
             io::ErrorKind::InvalidData,
             format!(
                 "{}: expected one of {FILES:?}, found {}",
                 exercise.display(),
                 found.len()
             ),
-        ));
-    };
-    Ok(statement.clone())
+        )),
+    }
 }
 
 #[cfg(test)]
