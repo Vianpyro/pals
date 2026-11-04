@@ -4,6 +4,7 @@ name: log791
 services:
   dev:
     build: .
+    entrypoint: ["/usr/local/share/docker-init.sh"]
     command: sleep infinity
     volumes:
       - ..:/workspaces/LOG791:cached
