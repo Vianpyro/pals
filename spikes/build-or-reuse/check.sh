@@ -26,7 +26,7 @@ for exercise in "$exercises"/*/; do
       *) fail "$solution: unknown language"; continue ;;
     esac
 
-    for input in "$exercise"assessment/*.in; do
+    for input in "$exercise"assessment/*/*.in; do
       if "${run[@]}" < "$input" | cmp -s - "${input%.in}.out"; then
         echo "ok   $solution $(basename "$input" .in)"
       else

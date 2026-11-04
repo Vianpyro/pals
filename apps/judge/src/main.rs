@@ -144,11 +144,12 @@ mod tests {
         ))
     }
 
-    // log200 with sum published in its active release and one case in its content repository
+    // log200 with sum published in its active release and one hidden case in its content repository
     fn log200(name: &str) -> (PathBuf, PathBuf) {
         let root = env::temp_dir().join("judge-tests").join(name);
+        let _ = fs::remove_dir_all(&root); // left by a previous run
         let content = root.join("content");
-        let assessment = content.join("log200/exercises/sum/assessment");
+        let assessment = content.join("log200/exercises/sum/assessment/hidden");
         fs::create_dir_all(&assessment).unwrap();
         fs::write(assessment.join("1.in"), "1 2").unwrap();
         fs::write(assessment.join("1.out"), "3").unwrap();
