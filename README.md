@@ -22,6 +22,9 @@ Common commands are VS Code tasks (**Tasks: Run Task**):
 |------|--------------|
 | `demo: start` | Runs on folder open: the example course behind the page (**Ports** → `80`) |
 | `rust: check` | Format, Clippy and tests, as CI does |
+| `web: dev` | The page with hot reload (**Ports** → `5173`), API proxied, no CSP |
+| `web: check` | Svelte check, tests, build, size budget and nginx's headers |
+| `web: e2e` | The student's journeys in Chromium and WebKit, with the demo running |
 | `architecture: check` | Check component boundaries in the crate graph, as CI does |
 | `env: check` | Check that every local service answers |
 | `docs: build site` | Build every document into `_site/` |
@@ -38,7 +41,7 @@ Outside the dev container, install [rustup](https://rustup.rs/): it reads `rust-
 
 | Path | Contents |
 |------|----------|
-| `apps/` | `api`, `judge`, `publisher`, `admin` (Rust binaries) and `web` (static) |
+| `apps/` | `api`, `judge`, `publisher`, `admin` (Rust binaries) and `web` (Svelte, built to static files) |
 | `packages/` | Code shared by the apps: `contracts` (JSON Schemas and their Rust types), `content` (release reader, opening rule) |
 | `packs/` | Language packs, test runners and question types: data, not core code |
 | `db/migrations/` | PostgreSQL schema |

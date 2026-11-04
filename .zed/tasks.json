@@ -23,6 +23,11 @@
     "command": "npm run check -w apps/web && npm test -w apps/web && npm run build -w apps/web && npm run budget -w apps/web && bash tests/web/headers.sh"
   },
   {
+    // demo: start must be running
+    "label": "web: e2e",
+    "command": "npm run build -w apps/web && npm run e2e"
+  },
+  {
     "label": "db: prepare queries",
     "command": "cargo sqlx prepare --workspace -- --all-targets"
   },

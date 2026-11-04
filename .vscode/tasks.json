@@ -42,6 +42,13 @@
       "problemMatcher": []
     },
     {
+      "label": "web: e2e",
+      "detail": "The student's journeys in Chromium and WebKit against the demo (demo: start must be running)",
+      "type": "shell",
+      "command": "npm run build -w apps/web && npm run e2e",
+      "problemMatcher": []
+    },
+    {
       "label": "db: prepare queries",
       "detail": "Refresh .sqlx/ after changing a query! macro; commit the result",
       "type": "shell",

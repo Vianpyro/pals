@@ -20,8 +20,8 @@
 
         <section id="course" hidden>
             <button id="sign-out" type="button">Se déconnecter</button>
-            <h2>Exercices</h2>
-            <ul id="catalog"></ul>
+            <h2 id="catalog-title">Exercices</h2>
+            <ul id="catalog" aria-labelledby="catalog-title"></ul>
 
             <section id="exercise" hidden>
                 <pre id="statement"></pre>
@@ -30,9 +30,9 @@
                     <textarea id="source" rows="15" cols="80" spellcheck="false" required></textarea><br>
                     <button>Soumettre</button>
                 </form>
-                <h3>Vos soumissions</h3>
+                <h3 id="history-title">Vos soumissions</h3>
                 <!-- reversed: the newest run, listed first, carries the highest number -->
-                <ol id="history" reversed></ol>
+                <ol id="history" reversed aria-labelledby="history-title"></ol>
             </section>
         </section>
 

@@ -18,6 +18,8 @@ jobs:
   # Ignored tests need these services: they run here.
   # The queries are checked against the migrated schema; .sqlx/ must match it.
   # nginx's headers are checked on the built page; the web image build (images.yml) runs the web checks.
+  # The student's journeys need the API and the judge: the demo runs in the background, and its log
+  # is printed if the API never answers.
   devcontainer:
     runs-on: ubuntu-latest
     steps:
@@ -26,7 +28,15 @@ jobs:
       - uses: devcontainers/ci@v0.3
         with:
           push: never
-          runCmd: bash .devcontainer/check.sh && bash tests/queries/check.sh && cargo test --locked -- --ignored && npm run build -w apps/web && bash tests/web/headers.sh
+          runCmd: >-
+            bash .devcontainer/check.sh
+            && bash tests/queries/check.sh
+            && cargo test --locked -- --ignored
+            && npm run build -w apps/web
+            && bash tests/web/headers.sh
+            && (bash .devcontainer/demo.sh > /tmp/demo.log 2>&1 &)
+            && { timeout 300 sh -c 'until curl -sf http://localhost/api/health; do sleep 2; done' || { cat /tmp/demo.log; exit 1; }; }
+            && CI=1 npm run e2e
 
   # The runner's rustup installs the toolchain of rust-toolchain.toml on first use.
   # No PostgreSQL here: query! macros read .sqlx/, written by cargo sqlx prepare.
