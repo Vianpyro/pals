@@ -1,7 +1,6 @@
 {
   "name": "log791",
   "private": true,
-  "type": "module",
   "workspaces": [
     "apps/web"
   ],
