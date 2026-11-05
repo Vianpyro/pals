@@ -23,7 +23,10 @@ jobs:
   devcontainer:
     runs-on: ubuntu-latest
     steps:
+      # The release tags: the contracts are compared with the previous release's
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
 
       - uses: devcontainers/ci@v0.3
         with:
@@ -32,6 +35,8 @@ jobs:
             bash .devcontainer/check.sh
             && bash tests/queries/check.sh
             && cargo test --locked -- --ignored
+            && bash tests/contracts/check.sh
+            && bash tests/contracts/compatible.sh
             && npm run build -w apps/web
             && bash tests/web/headers.sh
             && (bash .devcontainer/demo.sh > /tmp/demo.log 2>&1 &)
@@ -55,6 +60,13 @@ jobs:
 
       - name: Tests
         run: cargo test --locked
+
+      # The tests rewrote packages/contracts/bindings (ts-rs): the committed TypeScript must match.
+      # --intent-to-add: a binding the tests created, and nobody committed, shows in the diff.
+      - name: Contracts
+        run: |
+          git add --intent-to-add packages/contracts/bindings
+          git diff --exit-code -- packages/contracts/bindings
 
       # Component boundaries (ADR-0014), from the crate graph.
       - name: Architecture

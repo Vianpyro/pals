@@ -2,3 +2,5 @@
 * text=auto eol=lf
 # Test data is compared byte for byte: never convert its line endings.
 **/assessment/** -text
+# Written by cargo test (ts-rs) and checked by CI: folded in GitHub's diffs
+packages/contracts/bindings/** linguist-generated=true
