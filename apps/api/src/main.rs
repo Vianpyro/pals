@@ -24,6 +24,7 @@ use uuid::Uuid;
 
 mod catalog;
 mod directory;
+mod drafts;
 mod events;
 mod gate;
 mod notify;
@@ -99,6 +100,10 @@ fn app(pool: PgPool, directory: Directory, courses: PathBuf) -> Router {
     };
     Router::new()
         .route("/courses/{course}/exercises", get(catalog::catalog))
+        .route(
+            "/courses/{course}/exercises/{exercise}/draft",
+            get(drafts::draft).put(drafts::save),
+        )
         .route(
             "/courses/{course}/exercises/{exercise}/statement",
             get(statement),
@@ -344,7 +349,10 @@ mod tests {
             .header(header::COOKIE, cookie)
             .body(Body::empty())
             .unwrap();
-        let response = router.oneshot(request).await.unwrap();
+        read(router.oneshot(request).await.unwrap()).await
+    }
+
+    async fn read(response: Response) -> (StatusCode, String) {
         let status = response.status();
         let body = axum::body::to_bytes(response.into_body(), usize::MAX)
             .await
@@ -1069,5 +1077,177 @@ mod tests {
     #[ignore = "needs PostgreSQL"]
     async fn events_without_session_are_unauthorized(pool: PgPool) {
         assert_eq!(Events::open(&pool, "").await.0, StatusCode::UNAUTHORIZED);
+    }
+
+    async fn put_draft(
+        pool: &PgPool,
+        courses: PathBuf,
+        cookie: &str,
+        body: impl Into<Body>,
+    ) -> (StatusCode, String) {
+        let request = Request::put("/courses/log200/exercises/sum/draft")
+            .header(header::CONTENT_TYPE, "application/json")
+            .header(header::COOKIE, cookie)
+            .body(body.into())
+            .unwrap();
+        let router = app(pool.clone(), Directory::unreachable(), courses);
+        read(router.oneshot(request).await.unwrap()).await
+    }
+
+    async fn get_draft(pool: &PgPool, courses: PathBuf, cookie: &str) -> (StatusCode, String) {
+        let router = app(pool.clone(), Directory::unreachable(), courses);
+        fetch(router, cookie, "/courses/log200/exercises/sum/draft").await
+    }
+
+    fn answer(status: StatusCode, body: &str) -> (StatusCode, String) {
+        (status, body.to_string())
+    }
+
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL"]
+    async fn no_draft_yet_is_revision_zero(pool: PgPool) {
+        let courses = open_sum(&pool, "draft-none").await;
+        assert_eq!(
+            get_draft(&pool, courses, &signed_in(&pool).await).await,
+            answer(StatusCode::OK, r#"{"revision":0,"source":""}"#)
+        );
+    }
+
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL"]
+    async fn a_saved_draft_is_read_back(pool: PgPool) {
+        let courses = open_sum(&pool, "draft-saved").await;
+        let cookie = signed_in(&pool).await;
+        let first = r#"{"base":0,"source":"print(1)"}"#;
+        let second = r#"{"base":1,"source":"print(2)"}"#;
+        assert_eq!(
+            put_draft(&pool, courses.clone(), &cookie, first).await,
+            answer(StatusCode::OK, r#"{"revision":1}"#)
+        );
+        assert_eq!(
+            put_draft(&pool, courses.clone(), &cookie, second).await,
+            answer(StatusCode::OK, r#"{"revision":2}"#)
+        );
+        assert_eq!(
+            get_draft(&pool, courses, &cookie).await,
+            answer(StatusCode::OK, r#"{"revision":2,"source":"print(2)"}"#)
+        );
+    }
+
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL"]
+    async fn a_stale_write_gets_the_current_draft(pool: PgPool) {
+        let courses = open_sum(&pool, "draft-stale").await;
+        let cookie = signed_in(&pool).await;
+        put_draft(
+            &pool,
+            courses.clone(),
+            &cookie,
+            r#"{"base":0,"source":"print(1)"}"#,
+        )
+        .await;
+        assert_eq!(
+            put_draft(
+                &pool,
+                courses.clone(),
+                &cookie,
+                r#"{"base":0,"source":"print(2)"}"#
+            )
+            .await,
+            answer(
+                StatusCode::CONFLICT,
+                r#"{"revision":1,"source":"print(1)"}"#
+            )
+        );
+        assert_eq!(
+            get_draft(&pool, courses, &cookie).await,
+            answer(StatusCode::OK, r#"{"revision":1,"source":"print(1)"}"#)
+        );
+    }
+
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL"]
+    async fn a_replayed_write_is_acknowledged_again(pool: PgPool) {
+        let courses = open_sum(&pool, "draft-replayed").await;
+        let cookie = signed_in(&pool).await;
+        let write = r#"{"base":0,"source":"print(1)"}"#;
+        for _ in 0..2 {
+            assert_eq!(
+                put_draft(&pool, courses.clone(), &cookie, write).await,
+                answer(StatusCode::OK, r#"{"revision":1}"#)
+            );
+        }
+    }
+
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL"]
+    async fn of_two_writes_on_one_base_only_one_applies(pool: PgPool) {
+        let courses = open_sum(&pool, "draft-race").await;
+        let cookie = signed_in(&pool).await;
+        let (first, second) = tokio::join!(
+            put_draft(
+                &pool,
+                courses.clone(),
+                &cookie,
+                r#"{"base":0,"source":"print(1)"}"#
+            ),
+            put_draft(
+                &pool,
+                courses.clone(),
+                &cookie,
+                r#"{"base":0,"source":"print(2)"}"#
+            ),
+        );
+        let mut statuses = [first.0, second.0];
+        statuses.sort();
+        assert_eq!(statuses, [StatusCode::OK, StatusCode::CONFLICT]);
+    }
+
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL"]
+    async fn drafts_are_per_student(pool: PgPool) {
+        let courses = open_sum(&pool, "draft-own").await;
+        let mine = signed_in_as(&pool, "etudiant1").await;
+        put_draft(
+            &pool,
+            courses.clone(),
+            &mine,
+            r#"{"base":0,"source":"print(1)"}"#,
+        )
+        .await;
+        assert_eq!(
+            get_draft(&pool, courses, &signed_in_as(&pool, "etudiant2").await).await,
+            answer(StatusCode::OK, r#"{"revision":0,"source":""}"#)
+        );
+    }
+
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL"]
+    async fn a_draft_of_a_closed_exercise_is_forbidden(pool: PgPool) {
+        schedule_sum(&pool, "-2 hours", Some("-1 hour")).await;
+        let courses = published_courses("draft-closed");
+        let cookie = signed_in(&pool).await;
+        let write = r#"{"base":0,"source":"print(1)"}"#;
+        assert_eq!(
+            put_draft(&pool, courses.clone(), &cookie, write).await.0,
+            StatusCode::FORBIDDEN
+        );
+        assert_eq!(
+            get_draft(&pool, courses, &cookie).await.0,
+            StatusCode::FORBIDDEN
+        );
+    }
+
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL"]
+    async fn an_oversized_draft_is_rejected(pool: PgPool) {
+        let courses = open_sum(&pool, "draft-oversized").await;
+        let write = format!(r#"{{"base":0,"source":"{}"}}"#, "x".repeat(MAX_SOURCE + 1));
+        assert_eq!(
+            put_draft(&pool, courses, &signed_in(&pool).await, write)
+                .await
+                .0,
+            StatusCode::UNPROCESSABLE_ENTITY
+        );
     }
 }

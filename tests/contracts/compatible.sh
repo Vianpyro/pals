@@ -13,7 +13,7 @@
 set -euo pipefail
 
 # Types the API receives; it sends every other one. Id goes both ways.
-received=" Credentials Submission Id "
+received=" Credentials DraftWrite Submission Id "
 sent_too=" Id "
 accepted=${CONTRACTS_ACCEPTED:-tests/contracts/accepted}
 
