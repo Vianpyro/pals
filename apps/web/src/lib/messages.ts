@@ -2,6 +2,7 @@
 import type { CatalogEntry } from "@log791/contracts/CatalogEntry";
 import type { RunStatus } from "@log791/contracts/RunStatus";
 import type { Failure } from "@log791/ui/api";
+import type { SaveState } from "./draft.ts";
 import type { Key, Translate } from "./i18n.ts";
 
 /** The message for a failed call: the one `known` gives its status, else a general one. */
@@ -29,6 +30,18 @@ export function runText(t: Translate, status: RunStatus): string {
             return t("run.failed");
         default:
             return t("run.unknown");
+    }
+}
+
+/** Whether the draft is saved, beside the editor. Why it is not goes to the status line. */
+export function saveText(t: Translate, state: SaveState): string {
+    switch (state.kind) {
+        case "saved":
+            return t("draft.saved");
+        case "pending":
+            return t("draft.saving");
+        default:
+            return t("draft.notSaved");
     }
 }
 

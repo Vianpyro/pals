@@ -27,6 +27,17 @@
   "exercise.historyUnavailable": "Historique indisponible (erreur {status}).",
   "exercise.run": "{at, date, long} à {at, time, short} — {status}",
 
+  "draft.saved": "Brouillon enregistré.",
+  "draft.saving": "Enregistrement du brouillon…",
+  "draft.notSaved": "Brouillon non enregistré.",
+  "draft.tooLarge": "Brouillon non enregistré : le code dépasse 1 Mio.",
+  "draft.conflict": "Un autre onglet a enregistré ce code entre-temps : choisissez la version à garder.",
+  "draft.conflictTitle": "Choisir une version",
+  "draft.conflictHelp": "Ce code a été enregistré depuis un autre onglet ou une autre fenêtre après son ouverture ici. Votre version reste dans l'éditeur jusqu'à votre choix.",
+  "draft.savedVersion": "Version enregistrée",
+  "draft.keepMine": "Garder ma version",
+  "draft.takeSaved": "Prendre la version enregistrée",
+
   "submission.invalid": "Le code est vide ou dépasse 1 Mio.",
   "submission.sessionExpired": "Session expirée : reconnectez-vous.",
 

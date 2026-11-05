@@ -3,16 +3,34 @@
 import { expect, test } from "./fixtures.js";
 
 const CATALOG = "**/api/courses/log200/exercises";
+const DRAFT = `${CATALOG}/sum/draft`;
 
 // A signed-in student with the sum exercise open, every API answer simulated
 async function openSumWithFakeApi(page) {
     await page.route(CATALOG, (route) => route.fulfill({ json: [{ id: "sum", open: true, opens_at: null, closes_at: null }] }));
     await page.route(`${CATALOG}/sum/statement`, (route) => route.fulfill({ body: "Lire deux entiers." }));
     await page.route(`${CATALOG}/sum/submissions`, (route) => route.fulfill({ json: [] }));
+    await page.route(DRAFT, (route) =>
+        route.fulfill({ json: route.request().method() === "GET" ? { revision: 0, source: "" } : { revision: 1 } }),
+    );
     await page.goto("/");
     await page.getByRole("button", { name: "sum" }).click();
     await expect(page.getByText("Lire deux entiers.")).toBeVisible();
 }
+
+test("a draft the server cannot take says so, and is saved once it answers again", async ({ page }) => {
+    await openSumWithFakeApi(page);
+    const editor = page.getByLabel("Code Python");
+    await page.route(DRAFT, (route) => (route.request().method() === "PUT" ? route.abort("connectionrefused") : route.fallback()));
+    await editor.fill("print(1)");
+    await expect(editor).toHaveAccessibleDescription("Brouillon non enregistré.");
+    await expect(page.getByRole("status")).toHaveText("Serveur injoignable.");
+
+    await page.unroute(DRAFT);
+    await page.route(DRAFT, (route) => route.fulfill({ json: { revision: 1 } }));
+    await editor.fill("print(12)");
+    await expect(editor).toHaveAccessibleDescription("Brouillon enregistré.");
+});
 
 test("the API starting up is explained", async ({ page }) => {
     await page.route(CATALOG, (route) => route.fulfill({ status: 502 }));

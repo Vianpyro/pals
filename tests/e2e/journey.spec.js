@@ -72,6 +72,72 @@ test("a wrong program fails", async ({ page, student }) => {
     await expect(page.getByRole("status")).toHaveText("Échoué : au moins un test ne passe pas.", VERDICT);
 });
 
+// Drafts are tested here rather than in a file of their own: files run in parallel, and another
+// test of the same student writing the same draft would turn this file's saves into conflicts.
+const editor = (page) => page.getByLabel("Code Python");
+const saved = (page) => expect(editor(page)).toHaveAccessibleDescription("Brouillon enregistré.");
+
+test("the draft is found again after a reload", async ({ page, student }) => {
+    const code = `print(${Date.now()})\n`;
+    await signIn(page, student);
+    await openSum(page);
+    await editor(page).fill(code);
+    await expect(editor(page)).toHaveAccessibleDescription("Enregistrement du brouillon…");
+    await saved(page);
+
+    await page.reload();
+    await openSum(page);
+    await expect(editor(page)).toHaveValue(code);
+});
+
+test("a draft saved from another tab meanwhile lets the student choose", async ({ context, page, student }) => {
+    await signIn(page, student);
+    await openSum(page);
+    await saved(page); // its revision read before the other tab writes
+    const other = await context.newPage(); // same session
+    await other.goto("/");
+    await openSum(other);
+    await saved(other);
+
+    const theirs = `print("other tab ${Date.now()}")\n`;
+    await other.getByLabel("Code Python").fill(theirs);
+    await saved(other);
+    const mine = `print("this tab ${Date.now()}")\n`;
+    await editor(page).fill(mine);
+
+    await expect(page.getByRole("status")).toHaveText(
+        "Un autre onglet a enregistré ce code entre-temps : choisissez la version à garder.",
+    );
+    await expect(editor(page)).toHaveAccessibleDescription("Brouillon non enregistré.");
+    await expect(page.getByLabel("Version enregistrée")).toHaveValue(theirs);
+    await expect(editor(page)).toHaveValue(mine);
+    await expectAccessible(page);
+
+    await page.getByRole("button", { name: "Garder ma version" }).click();
+    await saved(page);
+    await expect(page.getByLabel("Version enregistrée")).toHaveCount(0);
+    await other.reload();
+    await openSum(other);
+    await expect(other.getByLabel("Code Python")).toHaveValue(mine);
+});
+
+test("taking the saved version replaces the editor's", async ({ context, page, student }) => {
+    await signIn(page, student);
+    await openSum(page);
+    await saved(page);
+    const other = await context.newPage();
+    await other.goto("/");
+    await openSum(other);
+    const theirs = `print("kept ${Date.now()}")\n`;
+    await other.getByLabel("Code Python").fill(theirs);
+    await saved(other);
+
+    await editor(page).fill("print('dropped')\n");
+    await page.getByRole("button", { name: "Prendre la version enregistrée" }).click();
+    await expect(editor(page)).toHaveValue(theirs);
+    await saved(page);
+});
+
 test("the session survives a reload and ends on sign-out", async ({ page, student }) => {
     await signIn(page, student);
     await page.reload();

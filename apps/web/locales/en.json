@@ -27,6 +27,17 @@
   "exercise.historyUnavailable": "History unavailable (error {status}).",
   "exercise.run": "{at, date, long} at {at, time, short} — {status}",
 
+  "draft.saved": "Draft saved.",
+  "draft.saving": "Saving draft…",
+  "draft.notSaved": "Draft not saved.",
+  "draft.tooLarge": "Draft not saved: the code is larger than 1 MiB.",
+  "draft.conflict": "Another tab saved this code meanwhile: choose the version to keep.",
+  "draft.conflictTitle": "Choose a version",
+  "draft.conflictHelp": "This code was saved from another tab or window after you opened it here. Your version stays in the editor until you choose.",
+  "draft.savedVersion": "Saved version",
+  "draft.keepMine": "Keep my version",
+  "draft.takeSaved": "Use the saved version",
+
   "submission.invalid": "The code is empty or larger than 1 MiB.",
   "submission.sessionExpired": "Session expired: sign in again.",
 
