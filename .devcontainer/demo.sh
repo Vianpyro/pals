@@ -6,8 +6,8 @@ cd "$(dirname "$0")/.."
 
 demo=/tmp/demo
 bin=${CARGO_TARGET_DIR:-target}/debug
-# The judge's Python pack image (apps/judge/src/main.rs)
-image=python:3.14-alpine
+# The judge's Python pack image (packs/languages/python/pack.toml)
+image=python:3.15-alpine
 
 # The inner dockerd starts alongside this script
 for _ in $(seq 30); do
@@ -34,6 +34,6 @@ psql -q -v ON_ERROR_STOP=1 "$DATABASE_URL" -c "
 # Whichever stops first, the other goes with it; traps cleared first, or kill 0 would run them again
 trap 'trap - EXIT INT TERM HUP; kill 0' EXIT INT TERM HUP
 COURSES="$demo/courses" "$bin/api" &
-CONTENT="$demo/content" COURSES="$demo/courses" "$bin/judge" &
+PACKS="$PWD/packs/languages" CONTENT="$demo/content" COURSES="$demo/courses" "$bin/judge" &
 echo "Démo prête : onglet Ports → 80 (etudiant1 / log791-dev)"
 wait -n

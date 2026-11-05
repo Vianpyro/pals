@@ -12,8 +12,11 @@ use tokio::{
     time, try_join,
 };
 
+use crate::{Pack, Submission};
+
 /// gVisor, as registered with Docker
 const RUNTIME: &str = "runsc";
+const MOUNT: &str = "/submission";
 
 // Doesn't depend on the image's `/etc/passwd`
 const SANDBOX_USER: u32 = 65534;
@@ -34,12 +37,12 @@ pub enum Outcome {
 
 pub async fn run_in_sandbox(
     name: &str,
-    image: &str,
-    command: &[&str],
+    pack: &Pack,
+    submission: &Submission,
     input: &[u8],
     timeout: Duration,
 ) -> io::Result<Outcome> {
-    let mut child = container(name, image, command)
+    let mut child = container(name, pack, submission)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
@@ -87,7 +90,7 @@ pub async fn run_in_sandbox(
     }
 }
 
-fn container(name: &str, image: &str, command: &[&str]) -> Command {
+fn container(name: &str, pack: &Pack, submission: &Submission) -> Command {
     let memory = MEMORY.to_string();
     let mut docker = Command::new("docker");
     docker
@@ -102,8 +105,14 @@ fn container(name: &str, image: &str, command: &[&str]) -> Command {
         .args(["--cap-drop", "ALL", "--security-opt", "no-new-privileges"])
         .arg("--user")
         .arg(format!("{SANDBOX_USER}:{SANDBOX_USER}"))
-        .arg(image)
-        .args(command);
+        .arg("--mount")
+        .arg(format!(
+            "type=bind,src={},dst={MOUNT},readonly",
+            submission.dir().display()
+        ))
+        .args(["--workdir", MOUNT])
+        .arg(&pack.image)
+        .args(&pack.run);
     docker
 }
 
@@ -122,7 +131,6 @@ mod tests {
     use super::*;
     use std::assert_matches;
 
-    const IMAGE: &str = "python:3.14-alpine";
     const START: Duration = Duration::from_mins(1);
     const DEADLINE: Duration = Duration::from_secs(5);
 
@@ -130,16 +138,21 @@ mod tests {
         format!("judge-test-{name}")
     }
 
+    fn python_pack() -> Pack {
+        Pack {
+            image: "python:3.15-alpine".into(),
+            source: "main.py".into(),
+            run: vec!["python3".into(), "main.py".into()],
+        }
+    }
+
     async fn python(name: &str, code: &str, input: &[u8], timeout: Duration) -> Outcome {
-        run_in_sandbox(
-            &test_container(name),
-            IMAGE,
-            &["python3", "-c", code],
-            input,
-            timeout,
-        )
-        .await
-        .unwrap()
+        let name = test_container(name);
+        let pack = python_pack();
+        let submission = Submission::write(&name, &pack.source, code).unwrap();
+        run_in_sandbox(&name, &pack, &submission, input, timeout)
+            .await
+            .unwrap()
     }
 
     #[track_caller]
@@ -169,6 +182,21 @@ mod tests {
     async fn filesystem_is_read_only() {
         let write = "open('/var/tmp/escape', 'w')";
         assert_failed(python("read-only", write, b"", START).await);
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    #[ignore = "needs Docker with runsc"]
+    async fn submission_is_mounted_read_only() {
+        use std::{fs, os::unix::fs::PermissionsExt};
+        let name = test_container("read-only-mount");
+        let pack = python_pack();
+        let submission = Submission::write(&name, &pack.source, "open('written', 'w')").unwrap();
+        fs::set_permissions(submission.dir(), fs::Permissions::from_mode(0o777)).unwrap();
+        let outcome = run_in_sandbox(&name, &pack, &submission, b"", START)
+            .await
+            .unwrap();
+        assert_failed(outcome);
     }
 
     #[tokio::test]

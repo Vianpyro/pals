@@ -1,41 +1,16 @@
 //! Pulls jobs, runs the sandbox and writes the verdict.
 
-use std::{env, error::Error, future, io, path::Path, str::FromStr, time::Duration};
+use std::{collections::HashMap, env, error::Error, future, io, path::Path, time::Duration};
 
 use content::{Schedule, accessible_exercise};
 use contracts::Id;
-use judge::{Case, Job, Verdict, claim, fail, finish, judge_cases, read_cases, read_schedule};
+use judge::{
+    Case, Job, Pack, Verdict, claim, fail, finish, judge_cases, read_cases, read_packs,
+    read_schedule,
+};
 use sqlx::{Connection, PgConnection};
 use tokio::time;
 
-#[derive(Debug, Clone, Copy)]
-enum Pack {
-    Python,
-}
-
-impl FromStr for Pack {
-    type Err = io::Error;
-
-    fn from_str(name: &str) -> io::Result<Self> {
-        match name {
-            "python" => Ok(Self::Python),
-            _ => Err(io::Error::new(
-                io::ErrorKind::Unsupported,
-                format!("language pack {name}"),
-            )),
-        }
-    }
-}
-
-impl Pack {
-    fn image(self) -> &'static str {
-        match self {
-            Self::Python => "python:3.14-alpine",
-        }
-    }
-}
-
-// Python pack until packs are data (ADR-0013)
 const TIMEOUT: Duration = Duration::from_secs(10);
 const POLL: Duration = Duration::from_secs(1);
 
@@ -44,6 +19,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let database = env::var("DATABASE_URL")?;
     let content = env::var_os("CONTENT").ok_or("CONTENT is not set")?;
     let courses = env::var_os("COURSES").ok_or("COURSES is not set")?;
+    let packs = env::var_os("PACKS").ok_or("PACKS is not set")?;
+    let packs = read_packs(packs.as_ref())?;
     let mut stop = stop_signal()?;
     let mut connection = PgConnection::connect(&database).await?;
 
@@ -63,16 +40,17 @@ async fn main() -> Result<(), Box<dyn Error>> {
         let schedule = read_schedule(&mut connection, &job.course, &job.exercise).await?;
 
         // Job cannot be judged: failed so it is never reclaimed
-        let (pack, cases) = match prepare(content.as_ref(), courses.as_ref(), &job, &schedule) {
-            Ok(prepared) => prepared,
-            Err(error) => {
-                eprintln!("judge: job {}: {error}", job.id);
-                if !fail(&mut connection, job.id).await? {
-                    eprintln!("judge: job {}: was no longer running", job.id);
+        let (pack, cases) =
+            match prepare(&packs, content.as_ref(), courses.as_ref(), &job, &schedule) {
+                Ok(prepared) => prepared,
+                Err(error) => {
+                    eprintln!("judge: job {}: {error}", job.id);
+                    if !fail(&mut connection, job.id).await? {
+                        eprintln!("judge: job {}: was no longer running", job.id);
+                    }
+                    continue;
                 }
-                continue;
-            }
-        };
+            };
 
         // A sandbox failure stops the judge rather than failing every job it claims
         let verdicts = judge(&job, pack, &cases).await?;
@@ -93,13 +71,19 @@ fn stop_signal() -> io::Result<tokio::signal::windows::CtrlC> {
     tokio::signal::windows::ctrl_c()
 }
 
-fn prepare(
+fn prepare<'p>(
+    packs: &'p HashMap<Id, Pack>,
     content: &Path,
     courses: &Path,
     job: &Job,
     schedule: &Schedule,
-) -> io::Result<(Pack, Vec<Case>)> {
-    let pack = job.language_pack.parse()?;
+) -> io::Result<(&'p Pack, Vec<Case>)> {
+    let pack = packs.get(&id(&job.language_pack)?).ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::Unsupported,
+            format!("language pack {}", job.language_pack),
+        )
+    })?;
     let course = id(&job.course)?;
     let exercise = id(&job.exercise)?;
 
@@ -124,10 +108,9 @@ fn id(value: &str) -> io::Result<Id> {
         .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))
 }
 
-async fn judge(job: &Job, pack: Pack, cases: &[Case]) -> io::Result<Vec<Verdict>> {
+async fn judge(job: &Job, pack: &Pack, cases: &[Case]) -> io::Result<Vec<Verdict>> {
     let name = format!("judge-{}", job.id);
-    let command = ["python3", "-c", &job.source];
-    judge_cases(&name, pack.image(), &command, cases, TIMEOUT).await
+    judge_cases(&name, pack, &job.source, cases, TIMEOUT).await
 }
 
 #[cfg(test)]
@@ -160,6 +143,14 @@ mod tests {
         (content, courses)
     }
 
+    fn packs() -> HashMap<Id, Pack> {
+        read_packs(Path::new(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../packs/languages"
+        )))
+        .unwrap()
+    }
+
     // Submitted 30 s after the epoch
     fn job(language_pack: &str, exercise: &str, source: &str) -> Job {
         Job {
@@ -187,7 +178,9 @@ mod tests {
     #[test]
     fn job_submitted_before_closing_is_judged_after_it() {
         let (content, courses) = log200("submitted-before-closing");
+        let packs = packs();
         let (_, cases) = prepare(
+            &packs,
             &content,
             &courses,
             &job("python", "sum", ""),
@@ -200,7 +193,9 @@ mod tests {
     #[test]
     fn job_submitted_after_closing_is_denied() {
         let (content, courses) = log200("submitted-after-closing");
+        let packs = packs();
         let result = prepare(
+            &packs,
             &content,
             &courses,
             &job("python", "sum", ""),
@@ -212,7 +207,9 @@ mod tests {
     #[test]
     fn unknown_language_pack_is_unsupported() {
         let (content, courses) = log200("unknown-pack");
+        let packs = packs();
         let result = prepare(
+            &packs,
             &content,
             &courses,
             &job("invalid", "sum", ""),
@@ -224,7 +221,9 @@ mod tests {
     #[test]
     fn unpublished_exercise_is_not_found() {
         let (content, courses) = log200("unpublished");
+        let packs = packs();
         let result = prepare(
+            &packs,
             &content,
             &courses,
             &job("python", "missing", ""),
@@ -238,7 +237,8 @@ mod tests {
         let (content, courses) = log200("another-course");
         let mut job = job("python", "sum", "");
         job.course = "log201".to_string();
-        let result = prepare(&content, &courses, &job, &closing_after(60));
+        let packs = packs();
+        let result = prepare(&packs, &content, &courses, &job, &closing_after(60));
         assert_matches!(result, Err(error) if error.kind() == io::ErrorKind::NotFound);
     }
 
@@ -248,7 +248,9 @@ mod tests {
         let sum = "import sys; print(sum(map(int, sys.stdin.read().split())))";
         let job = job("python", "sum", sum);
         let cases = read_cases(&examples().join("exercises/sum/assessment")).unwrap();
-        let verdicts = judge(&job, Pack::Python, &cases).await.unwrap();
+        let verdicts = judge(&job, &packs()[&id("python").unwrap()], &cases)
+            .await
+            .unwrap();
         assert_eq!(verdicts, [Verdict::Passed; 5]);
     }
 }

@@ -7,7 +7,10 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::sandbox::MAX_OUTPUT;
+use crate::{
+    errors::{invalid, located},
+    sandbox::MAX_OUTPUT,
+};
 
 // An expected output beyond what the sandbox keeps could never match
 const MAX_CASE_FILE: u64 = MAX_OUTPUT;
@@ -69,8 +72,7 @@ fn inputs(dir: &Path) -> io::Result<Vec<PathBuf>> {
 
 // Untrusted content
 fn read_case_file(path: &Path) -> io::Result<Vec<u8>> {
-    let metadata = fs::symlink_metadata(path)
-        .map_err(|error| io::Error::new(error.kind(), format!("{}: {error}", path.display())))?;
+    let metadata = fs::symlink_metadata(path).map_err(|error| located(path, error))?;
     (metadata.is_file() && metadata.len() <= MAX_CASE_FILE).ok_or_else(|| {
         invalid(
             path,
@@ -78,13 +80,6 @@ fn read_case_file(path: &Path) -> io::Result<Vec<u8>> {
         )
     })?;
     fs::read(path)
-}
-
-fn invalid(path: &Path, reason: &str) -> io::Error {
-    io::Error::new(
-        io::ErrorKind::InvalidData,
-        format!("{}: {reason}", path.display()),
-    )
 }
 
 #[cfg(test)]

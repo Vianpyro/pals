@@ -45,7 +45,7 @@ check "ldap: test accounts" 60 ldap_finds_student
 check "docker: inner daemon" 30 docker info
 check "docker: runsc registered" 5 runsc_registered
 check "gvisor: hello-world" 1 docker run --rm --runtime=runsc hello-world
-check "gvisor: python" 1 docker run --rm --runtime=runsc python:3.14-alpine python -c "print(1)"
+check "gvisor: python" 1 docker run --rm --runtime=runsc python:3.15-alpine python -c "print(1)"
 check "typst" 1 typst --version
 check "ansible" 1 ansible --version
 check "ansible-lint" 1 ansible-lint --version

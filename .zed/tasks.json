@@ -75,6 +75,6 @@
   },
   {
     "label": "gvisor: sandbox shell",
-    "command": "docker run --rm -it --runtime=runsc --network=none python:3.14-alpine sh"
+    "command": "docker run --rm -it --runtime=runsc --network=none python:3.15-alpine sh"
   }
 ]

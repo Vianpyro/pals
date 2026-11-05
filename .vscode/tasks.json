@@ -109,7 +109,7 @@
       "label": "gvisor: sandbox shell",
       "detail": "A shell in a gVisor sandbox with no network, for the isolation spike",
       "type": "shell",
-      "command": "docker run --rm -it --runtime=runsc --network=none python:3.14-alpine sh",
+      "command": "docker run --rm -it --runtime=runsc --network=none python:3.15-alpine sh",
       "problemMatcher": []
     }
   ],
