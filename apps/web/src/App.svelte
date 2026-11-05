@@ -1,7 +1,9 @@
 <script lang="ts">
     import type { CatalogEntry } from "@log791/contracts/CatalogEntry";
     import type { Identity } from "@log791/contracts/Identity";
+    import type { Run } from "@log791/contracts/Run";
     import { catalog, signOut, statement } from "@log791/ui/api";
+    import { followRuns } from "@log791/ui/events";
     import { onMount } from "svelte";
     import Catalog from "./Catalog.svelte";
     import Exercise from "./Exercise.svelte";
@@ -20,6 +22,19 @@
     let exercise: { id: string; statement: string } | null = $state(null);
     let status = $state("");
     const say = (text: string) => (status = text);
+
+    // The student's runs as the event stream last told them, by id; one stream per tab (ADR-0008)
+    let live: Record<string, Run> = $state({});
+    let streaming = $state(true);
+    $effect(() => {
+        if (view !== "course") return;
+        streaming = true;
+        const stream = followRuns(
+            (run) => (live[run.id] = run),
+            () => (streaming = false),
+        );
+        return () => stream.close();
+    });
 
     async function openCourse() {
         const outcome = await catalog(course);
@@ -76,6 +91,8 @@
                         {t}
                         {say}
                         {course}
+                        {live}
+                        {streaming}
                         id={exercise.id}
                         statement={exercise.statement}
                         onSignedOut={() => (view = "sign-in")}

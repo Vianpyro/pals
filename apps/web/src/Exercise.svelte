@@ -9,6 +9,8 @@
         t,
         say,
         course,
+        live,
+        streaming,
         id,
         statement,
         onSignedOut,
@@ -16,6 +18,10 @@
         t: Translate;
         say: (text: string) => void;
         course: string;
+        /** The runs as the event stream last told them, by id (App.svelte) */
+        live: Record<string, Run>;
+        /** False once the stream stopped for good: then this page polls (ADR-0008) */
+        streaming: boolean;
         id: string;
         statement: string;
         onSignedOut: () => void;
@@ -24,12 +30,24 @@
     // shortcut: the judge has only the Python pack until packs are data (ADR-0013)
     const PACK = "python";
     const LANGUAGE = "Python";
-    // shortcut: polls every second until verdicts arrive over SSE (spec, step 5)
     const POLL_MS = 1000;
 
     let runs: Run[] = $state([]);
+    // The history as last read, each run replaced by what the stream told of it since
+    const shown = $derived(runs.map((run) => live[run.id] ?? run));
+    // The run just submitted, whose progress the status line tells
+    let followed: string | null = $state(null);
     let source = $state("");
     let sending = $state(false);
+
+    const judged = (run: Run) => run.state !== "waiting" && run.state !== "running";
+
+    $effect(() => {
+        const run = followed === null ? undefined : live[followed];
+        if (!run) return;
+        say(runText(t, run));
+        if (judged(run)) followed = null;
+    });
 
     async function showHistory() {
         const outcome = await history(course, id);
@@ -42,7 +60,8 @@
         }
     }
 
-    async function follow(run: string) {
+    // Only when the event stream stopped for good (ADR-0008)
+    async function poll(run: string) {
         for (;;) {
             const outcome = await progress(run);
             if (!outcome.ok) return say(failureText(t, outcome.failure));
@@ -65,8 +84,15 @@
                 say(failureText(t, outcome.failure, { 403: "exercise.notOpen", 404: "exercise.notFound", 422: "submission.invalid" }));
                 return;
             }
-            await follow(outcome.value.id);
-            await showHistory();
+            say(t("run.waiting"));
+            if (streaming) {
+                // The stream tells the rest, in the status line and in the history
+                followed = outcome.value.id;
+                await showHistory();
+            } else {
+                await poll(outcome.value.id);
+                await showHistory();
+            }
         } finally {
             sending = false;
         }
@@ -87,7 +113,7 @@
     <h3 id="history-title">{t("exercise.history")}</h3>
     <!-- reversed: the newest run, listed first, carries the highest number -->
     <ol reversed aria-labelledby="history-title">
-        {#each runs as run (run.id)}
+        {#each shown as run (run.id)}
             <li>{t("exercise.run", { at: new Date(run.enqueued_at), status: runText(t, run) })}</li>
         {/each}
     </ol>
