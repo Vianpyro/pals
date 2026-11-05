@@ -95,6 +95,7 @@
   law25: "https://www.publicationsduquebec.gouv.qc.ca/fileadmin/Fichiers_client/lois_et_reglements/LoisAnnuelles/en/2021/2021C25A.PDF",
   leetcode: "https://leetcode.com/",
   listen-notify: "https://www.postgresql.org/docs/current/sql-notify.html",
+  log200-survey: "https://forms.gle/ZWxyrpeUUaPUZuH88",
   lsp: "https://microsoft.github.io/language-server-protocol/",
   lti: "https://www.imsglobal.org/spec/lti/v1p3",
   mathml: "https://developer.mozilla.org/en-US/docs/Web/MathML",

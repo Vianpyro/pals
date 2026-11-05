@@ -12,7 +12,7 @@ Every code item needs an editor, and the web application has none yet. An instru
 CTester's editor is a `textarea` under a `pre` that paints the highlighting, with its own C highlighter, syntax check and shortcuts. It works because CTester has one language. The constraints here:
 
 - The catalog has some thirty languages (#adr("0013")), each needing at least highlighting.
-- It runs under #ext("seb")[Safe Exam Browser]: Chromium on Windows, WebKit on macOS; no CDN; shortcuts and the clipboard may be restricted (#arch("safe-exam-browser")[architecture]).
+- It runs under #ext("seb")[Safe Exam Browser]: Chromium on Windows, WebKit on macOS; no CDN; shortcuts and the clipboard may be restricted (#arch("safe-exam-browser")[architecture]). Copy and paste is the frustration LOG200 students cite most with today's Moodle editor; under SEB, a multi-line paste keeps only its first two lines (#arch("appendix-student-survey")[student survey]).
 - The interface targets #ext("wcag")[WCAG 2.1 AA] with a keyboard-navigable editor, in English and French (#adr("0011")).
 - Completion is requested (#adr("0035")), and compiler diagnostics should point at the line they are about.
 - The platform is handed over to people who will maintain it (#plan("risks")[risk R10]).
@@ -46,5 +46,5 @@ CTester's editor is a `textarea` under a `pre` that paints the highlighting, wit
 - The LSP client's repository moved off GitHub in April 2026; its source and version are pinned in the web application like any other dependency.
 
 #validation(id: "V-0034")[
-  Under SEB for Windows and for macOS: typing, Tab, Escape then Tab, undo, copy and paste work, and the draft comes back after SEB restarts. With a screen reader (NVDA, VoiceOver), a student can read a line, its diagnostic and the line number. Every P1 language is highlighted; a pack without an editor language opens as plain text. Measure the size loaded for the first code item and for each additional language.
+  Under SEB for Windows and for macOS: typing, Tab, Escape then Tab, undo, copy and paste (including a multi-line paste) and middle-click scrolling work, and the draft comes back after SEB restarts. With a screen reader (NVDA, VoiceOver), a student can read a line, its diagnostic and the line number. Every P1 language is highlighted; a pack without an editor language opens as plain text. Measure the size loaded for the first code item and for each additional language.
 ]

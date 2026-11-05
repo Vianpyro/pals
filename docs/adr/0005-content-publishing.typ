@@ -11,7 +11,7 @@ An exercise's content mixes public data (statement, templates) and private asses
 
 === Options considered
 
-- *Content in the database, edited in the application*: editing interface, but private data inside the Internet-facing process and a history to build.
+- *Content in the database, edited in the application*: editing interface, but private data inside the student-facing process and a history to build.
 - *Copy of the content repository served as is*: simple, but a single filtering mistake exposes the assessment data.
 - *Public projection into immutable releases*: validation before writing, allow-list of published fields, content-addressed revision, pointer to the active release.
 

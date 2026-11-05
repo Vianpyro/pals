@@ -1,6 +1,6 @@
 // Content only: the page and title are set by the entry point
 // (pdf/architecture.typ) or by the report. Do not add #set page here.
-#import "template.typ": adr, arch, course, decision, ext, hypothesis, mermaid, validation
+#import "template.typ": adr, arch, course, decision, ext, hypothesis, mermaid, plan, validation
 
 = Purpose of the document <arch-purpose-of-the-document>
 
@@ -291,7 +291,7 @@ An #ext("nginx")[nginx] reverse proxy is the platform's only HTTP entry point. I
   nginx is chosen for its small memory footprint, its native rate limiting and its availability in the Ubuntu repositories.
 ]
 
-The student site is reachable from the Internet, so that exercises can be done from home; only the dashboard is restricted to the VPN (#adr("0019")).
+The student site, like the dashboard (#adr("0019")), is reachable only through the ÉTS VPN, an ÉTS hosting constraint (#plan("scope")[project plan]). Practising from home therefore requires the VPN: in the #arch("appendix-student-survey")[student survey], 10 of 50 students say having to turn it on would discourage them, and 7 have never installed it.
 
 #decision[
   Nothing is served without a valid session except the sign-in page (with a short presentation of the platform), the interface's static files and the ACME challenge. Every API route checks the session; the default is closed.
@@ -1253,7 +1253,7 @@ Typst is reserved for what the Markdown grammar cannot express.
 )
 
 #decision[
-  Nothing is compiled per request. Typst runs during publishing, and the student receives static files. The Internet-facing service has no Typst compiler, no access to private content and no access to the container runtime.
+  Nothing is compiled per request. Typst runs during publishing, and the student receives static files. The student-facing service has no Typst compiler, no access to private content and no access to the container runtime.
 ]
 
 Compilation treats the document as untrusted, even if it is written by the teaching team:
@@ -1975,7 +1975,7 @@ Several important questions are deliberately left open.
 14. Which part of the architecture should be common to the different courses? A first answer is given by #adr("0012") and #adr("0014"); LOG121 will test it.
 15. How is assessment data distributed to the judges when they are spread over several machines: shared mount, copy at publication time or versioned artifact? Whatever the answer, a sandbox only receives the judged exercise's `assessment/` subtree (#adr("0023")).
 16. Is performance graded by a complexity verdict (one reference per exercise) or by a full ranking (one reference per language)? To be settled with the instructor.
-17. Is code that does not pass all tests measured? If the last submission fails while an earlier one passed, which one is measured?
+17. Is code that does not pass all tests measured? If the last submission fails while an earlier one passed, which one is measured? One student in the #arch("appendix-student-survey")[survey] asks that the submission passing the most tests be kept, or that the student choose.
 18. Which languages does each course support, and which of them can run in the browser? A first inventory is given in the #arch("appendix-course-inventory")[appendix] and the tiers in #adr("0013"); it remains to be confirmed with each course coordinator.
 19. Should existing Moodle question banks be imported (Moodle XML, GIFT), and for which families? A first answer is given in #adr("0029"), which also imports Word statements. CTester's importer is a starting point: it converts Moodle XML and reports what it cannot express instead of dropping it. The grader families (#adr("0015")) cover more types than CTester, such as calculated, essay and image drag and drop.
 20. How do TAs grade manual items (essay, UML diagram, file upload) during a heavy exam period: per item across students, or per student?
@@ -1983,8 +1983,8 @@ Several important questions are deliberately left open.
 22. Does Moodle accept #ext("ags")[AGS] grade updates after an activity has closed? Grading and performance measurement finish after the session (#adr("0022")); a locked grade item or a grade overridden in the Moodle gradebook would reject them. To confirm with the ÉTS Moodle administrators.
 23. Where are the content repositories hosted (GitHub, a GitLab at ÉTS), who can push to them, and does the host expose the identity of each push? The publication log relies on it, since a commit's author field can be forged (#adr("0023")).
 24. Which APIs and languages does #course("LOG645") use (OpenMP, MPI, threads; C or C++), how many cores does an exercise need, and is the speedup graded or only the result? #adr("0036") assumes C and C++ with OpenMP and MPI on one judge.
-25. What does "local" completion mean for the instructor: computed in the student's browser, as #adr("0035") assumes, or hosted at ÉTS rather than by a vendor? Is completion allowed in exams?
-26. For the assistant's hints (#adr("0031")): what default cost list, per item or per activity, and may an instructor write some levels by hand instead of the model, which would remove the risk of a leak for those levels?
+25. What does "local" completion mean for the instructor: computed in the student's browser, as #adr("0035") assumes, or hosted at ÉTS rather than by a vendor? Is completion allowed in exams? In the #arch("appendix-student-survey")[student survey], 36 of 48 students want it in exams and 3 prefer without; the default stays the instructor's call.
+26. For the assistant's hints (#adr("0031")): what default cost list, per item or per activity, and may an instructor write some levels by hand instead of the model, which would remove the risk of a leak for those levels? In the #arch("appendix-student-survey")[student survey], the median price students would pay for a first hint is 0.5 point out of 10, and 16 of 49 would pay nothing, far below the example of 1, 3 and 10 points. They ask that rephrasing the statement and explaining a compiler error be free, and they worry about paying for a wrong answer, whereas a charge is final. Exams come last among the activities where they want the assistant (15 of 50).
 
 = Validation methodology <arch-validation-methodology>
 
@@ -2070,3 +2070,61 @@ Courses the platform is designed for, in priority order: LOG200, then LOG121, th
 )
 
 Out of scope: courses without judged code (#course("GTI510"), #course("LOG410"), #course("LOG430"), #course("LOG795")), mobile emulation, Windows commands and Windows Server roles, and multi-service projects.
+
+= Appendix: LOG200 student survey <arch-appendix-student-survey>
+
+An anonymous #ext("log200-survey")[survey] was sent to #course("LOG200") students from 3 to 5 November 2026. It received 50 answers: 47 students taking the course this session, 2 who had taken it and 1 who will. Not every student answered every question, so totals vary. These answers inform the decisions; they do not make them. Defaults that change what an exam measures stay with the instructor.
+
+*Languages* (#adr("0013")).
+
+#table(
+  columns: (1fr, auto, auto, auto, auto, auto, auto, auto, auto, auto, auto),
+  stroke: 0.5pt,
+  [], [Java], [Python], [C\#], [TS], [C++], [JS], [C], [Rust], [Go], [Kotlin],
+  [Wanted for exercises], [39], [31], [20], [13], [10], [9], [8], [7], [4], [2],
+  [Single exam language], [23], [14], [4], [2], [2], [–], [–], [–], [2], [2],
+)
+
+One student chose assembly as their exam language.
+
+*Comprehension assistant* (#adr("0031")).
+
+- Would use it, from 1 to 4: 8, 15, 15 and 12 answers (median 3).
+- Where it should be available: practice 39, competitive programming 38, graded assignments 24, exams 15, nowhere 3.
+- Points they would give up for a first hint on a 10-point item: 0 for 16 students, 0.5 for 13, 1 for 16, 2 for 4 (median 0.5).
+- Help wanted: an idea for the algorithm 31, a compiler error 25, the statement 25, a failing test 23, performance 13.
+- Free-text answers ask that rephrasing the statement and explaining a compiler error cost nothing, that a hint the student finds wrong not cost points, and that hints be capped so that students cannot exhaust them in a row.
+
+*Completion* (#adr("0035")).
+
+#table(
+  columns: (1fr, auto, auto, auto),
+  stroke: 0.5pt,
+  [], [Wanted], [Indifferent], [Rather without],
+  [Practice], [37], [11], [2],
+  [Exams], [36], [9], [3],
+)
+
+*Exercise types* (#adr("0015"), #adr("0026"), #adr("0027"), #adr("0032")).
+
+#table(
+  columns: (1fr, auto, auto, auto),
+  stroke: 0.5pt,
+  [], [Very useful], [Somewhat], [Not useful],
+  [Predict the output or the complexity], [25], [15], [6],
+  [Self-assessment against the revealed solution], [24], [13], [11],
+  [Spaced review of theory], [22], [24], [2],
+  [Find and fix the bug], [20], [23], [4],
+  [Write tests that expose a faulty program], [16], [21], [11],
+  [Parsons problem], [7], [19], [21],
+)
+
+*Working environment.*
+
+- Devices for practice: personal Windows computer 39, Linux 17, ÉTS lab computers 14, macOS 6, phone 6, tablet 3.
+- Usual editor: VS Code 24, a JetBrains IDE 13, Visual Studio 7, Zed 3, others 3.
+- Settings in use: dark theme 38, zoom or large text 11, keyboard-only navigation 4, a font adapted for dyslexia 3, a screen reader 1; none 7.
+- Interface language: indifferent 24, French 19, English 7.
+- The ÉTS VPN: installed but rarely used 27, would discourage practice from home 10, never installed 7, already used regularly 6.
+
+*Frustrations with current tools* (Moodle, CodeRunner under #ext("seb")[Safe Exam Browser], paper exams). Copy and paste is by far the most cited: it fails in the Moodle editor, and under SEB a multi-line paste needs an extra key press and keeps only its first two lines. Next come the lack of completion and of error underlining, compiler messages that do not point at the right line, hidden tests that fail without any clue, no undo after submitting, no middle-click scrolling under SEB, and writing code on paper.

@@ -37,7 +37,7 @@ Several parts of the current design trust what these capabilities produce:
 
   [Content in the database, edited through the application],
   [Every field typed by a form.],
-  [Rejected by #adr("0005"): private data in the Internet-facing process; tests and solutions are still code.],
+  [Rejected by #adr("0005"): private data in the student-facing process; tests and solutions are still code.],
 
   [Content is untrusted input, confined to its course],
   [The damage an author can do stops at their offering; no review needed for safety.],

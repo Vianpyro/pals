@@ -7,7 +7,7 @@
 
 === Context
 
-An instructor asks for "local" completion based on the #ext("lsp")[Language Server Protocol]. "Local" is read here as computed on the student's machine, with no request to a server at each keystroke; this reading is to be confirmed (#arch("open-questions")[open question 25]).
+An instructor asks for "local" completion based on the #ext("lsp")[Language Server Protocol]. "Local" is read here as computed on the student's machine, with no request to a server at each keystroke; this reading is to be confirmed (#arch("open-questions")[open question 25]). Students want it: 37 of 50 in practice and 36 of 48 in exams (#arch("appendix-student-survey")[student survey]).
 
 The constraints:
 
@@ -51,6 +51,7 @@ The constraints:
 === Consequences
 
 - JavaScript and TypeScript get full completion first; Python and C/C++ depend on measurements; the other languages get word completion.
+- Java, the language most LOG200 students choose, and C\#, their third, get word completion only: the gap is widest where demand is (#arch("appendix-student-survey")[student survey]).
 - A language gains full completion by adding a worker to its pack, without touching the core.
 - The judge and the API carry no completion load, during exams or otherwise.
 - The download for a language server adds to the visible-test runtime of #adr("0008") for the same language.

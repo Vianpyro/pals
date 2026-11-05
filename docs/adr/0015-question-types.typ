@@ -94,6 +94,7 @@ Tiers are an order, not an exclusion: Q1 comes with #course("LOG200") and #cours
 - One exam, one timer, one SEB configuration, whatever the mix of items. Moodle only receives the grade (#ext("ags")[AGS]).
 - Grading non-code items in the judge adds a round trip through the queue for a trivial computation; exam priority keeps it short.
 - Importing existing Moodle banks (Moodle XML, GIFT) is not part of this decision; see #arch("open-questions")[open question 19].
+- Within Q2, Parsons problems come last: LOG200 students rate them the least useful type (21 of 47 "not useful"), and predicting the output the most useful (#arch("appendix-student-survey")[student survey]).
 
 #validation(id: "V-0015")[
   One exam mixing at least one item of each Q1 family is taken end to end under SEB and graded correctly. After a SEB restart, the student gets the same draw, order and variants. The published projection of a bank contains no key of any family. A regular expression known to backtrack catastrophically is evaluated in bounded time.

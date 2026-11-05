@@ -59,7 +59,7 @@ There is a single identity implementation, so no identity-provider extension poi
 === Consequences
 
 - The password is never stored nor logged, including in error traces; the sign-in route is rate-limited by #ext("nginx-limit-req")[`limit_req`].
-- The sign-in route is the only API route reachable from the Internet without a session (#arch("entry-layer")[Entry layer]).
+- The sign-in route is the only API route reachable without a session (#arch("entry-layer")[Entry layer]).
 - The threat model must cover the password transiting through the API.
 - Under SEB, only the platform's domain has to be allowed.
 - A directory outage prevents new sign-ins, but not sessions already open: students sign in before the exam starts.

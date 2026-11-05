@@ -11,7 +11,7 @@ During an exam, someone must be able to tell within seconds whether judges are a
 
 === Options considered
 
-- *Pages inside the student API*: nothing more to deploy, but the Internet-facing process gains routes that read every student's code, and it cannot be exposed separately.
+- *Pages inside the student API*: nothing more to deploy, but the student-facing process gains routes that read every student's code, and it cannot be exposed separately.
 - *A generic monitoring stack* (metrics server, dashboards): answers the operations question only, and adds several services to VMs with limited resources.
 - *A separate read-only application*, as in CTester.
 
