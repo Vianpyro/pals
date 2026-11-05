@@ -47,7 +47,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
             let directory = Directory::from_env()?;
             let courses = env::var_os("COURSES").ok_or("COURSES is not set")?;
             let listener = tokio::net::TcpListener::bind("0.0.0.0:8080").await?;
-            axum::serve(listener, app(pool, directory, courses.into())).await?;
+            let runs = notify::channel();
+            tokio::spawn(notify::forward(pool.clone(), runs.clone()));
+            axum::serve(listener, app(pool, directory, courses.into(), runs)).await?;
         }
         Some("migrate") => MIGRATOR.run(&pool).await?,
         Some(command) => return Err(format!("unknown command: {command}").into()),
@@ -88,10 +90,12 @@ impl FromRef<AppState> for broadcast::Sender<RunChanged> {
     }
 }
 
-fn app(pool: PgPool, directory: Directory, courses: PathBuf) -> Router {
-    let runs = notify::channel();
-    tokio::spawn(notify::forward(pool.clone(), runs.clone()));
-
+fn app(
+    pool: PgPool,
+    directory: Directory,
+    courses: PathBuf,
+    runs: broadcast::Sender<RunChanged>,
+) -> Router {
     let state = AppState {
         pool,
         directory: Arc::new(directory),
@@ -242,6 +246,12 @@ mod tests {
     const WRONG_PASSWORD: &str = r#"{"id": "etudiant1", "password": "wrong"}"#;
     const SUM: &str = r#"{"course": "log200", "exercise": "sum", "language_pack": "python", "source": "print(0)"}"#;
 
+    // A router without the queue's notifications. Tests build one per request, and each listener
+    // would hold one of the test pool's 5 connections until the test ends (sqlx::test)
+    fn app(pool: PgPool, directory: Directory, courses: PathBuf) -> Router {
+        super::app(pool, directory, courses, notify::channel())
+    }
+
     struct Events {
         body: axum::body::BodyDataStream,
         pending: String,
@@ -253,7 +263,9 @@ mod tests {
                 .header(header::COOKIE, cookie)
                 .body(Body::empty())
                 .unwrap();
-            let response = app(pool.clone(), Directory::unreachable(), PathBuf::new())
+            let runs = notify::channel();
+            tokio::spawn(notify::forward(pool.clone(), runs.clone()));
+            let response = super::app(pool.clone(), Directory::unreachable(), PathBuf::new(), runs)
                 .oneshot(request)
                 .await
                 .unwrap();
@@ -460,7 +472,7 @@ mod tests {
     async fn listening(pool: &PgPool) {
         for _ in 0..100 {
             let listeners: i64 = sqlx::query_scalar(
-                "SELECT count(*) FROM pg_stat_activity WHERE query = 'LISTEN \"runs\"'",
+                "SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND query = 'LISTEN \"runs\"'",
             )
             .fetch_one(pool)
             .await
