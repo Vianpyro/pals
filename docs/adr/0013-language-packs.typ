@@ -69,7 +69,7 @@ P1 images are preloaded on every judge; P2 and P3 images are pulled on first use
 - Adding a language is a directory and a passing conformance suite, without changing the judge.
 - Instruction counting is reliable for compiled languages and noisy for JIT or garbage-collected languages; a pack that declares itself unmeasurable gets a complexity verdict against a reference in the same language only.
 - The judge image footprint grows with P1; the shared base layer must be kept small.
-- C\#, the third language students ask for, runs on the judge only and gets word completion only (#adr("0008"), #adr("0035")): it shortens no queue.
+- C\#, the third language students ask for, runs on the judge only (#adr("0008")): it shortens no queue. Its completion depends on measuring Roslyn in the browser, with the index tier as fallback (#adr("0035")).
 - The Java pack caps the heap (`-Xmx`) below the sandbox memory limit, so that an overrun yields a memory verdict rather than a killed JVM; Java has no browser capability (#adr("0008")).
 - The shared Oracle instance is a component outside the sandbox and must be isolated from the application's database and secrets.
 
