@@ -20,7 +20,7 @@
   },
   {
     "label": "web: check",
-    "command": "npm run check -w apps/web && npm test -w apps/web && npm run build -w apps/web && npm run budget -w apps/web && bash tests/web/headers.sh"
+    "command": "npm run check --workspaces --if-present && npm test --workspaces --if-present && npm run build -w apps/web && npm run budget -w apps/web && bash tests/web/headers.sh"
   },
   {
     // demo: start must be running

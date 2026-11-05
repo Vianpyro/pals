@@ -1,0 +1,21 @@
+{
+  "name": "@log791/ui",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./api": "./src/api.ts",
+    "./i18n": "./src/i18n.ts"
+  },
+  "scripts": {
+    "check": "tsc",
+    "test": "node --test \"src/*.test.ts\""
+  },
+  "dependencies": {
+    "@log791/contracts": "*",
+    "intl-messageformat": "12.1.4"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "6.0.3"
+  }
+}

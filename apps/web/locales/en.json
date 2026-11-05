@@ -1,0 +1,40 @@
+{
+  "signIn.id": "User ID",
+  "signIn.password": "Password",
+  "signIn.submit": "Sign in",
+  "signIn.refused": "User ID or password refused.",
+  "signIn.directoryDown": "The directory does not answer, try again later.",
+  "signIn.greeting": "Hello, {name}.",
+  "signOut": "Sign out",
+
+  "server.unreachable": "Server out of reach.",
+  "server.starting": "The server is starting or not answering: try again in a moment.",
+  "server.error": "Error {status}.",
+
+  "catalog.title": "Exercises",
+  "catalog.unknownCourse": "This course does not exist.",
+  "catalog.empty": "No exercise published yet.",
+  "catalog.until": "until {at, date, long} at {at, time, short}",
+  "catalog.opensOn": "opens {at, date, long} at {at, time, short}",
+  "catalog.notScheduled": "not scheduled yet",
+  "catalog.closed": "closed",
+
+  "exercise.notOpen": "This exercise is not open.",
+  "exercise.notFound": "This exercise does not exist.",
+  "exercise.source": "{language} code",
+  "exercise.submit": "Submit",
+  "exercise.history": "Your submissions",
+  "exercise.historyUnavailable": "History unavailable (error {status}).",
+  "exercise.run": "{at, date, long} at {at, time, short} — {status}",
+
+  "submission.invalid": "The code is empty or larger than 1 MiB.",
+  "submission.sessionExpired": "Session expired: sign in again.",
+
+  "run.waiting": "Waiting for a judge…",
+  "run.running": "Being judged…",
+  "run.passed": "Passed: every test passes.",
+  "run.notPassed": "Failed: at least one test does not pass.",
+  "run.replaced": "Replaced by a newer submission.",
+  "run.failed": "Judging failed: tell your instructor.",
+  "run.unknown": "Unknown state: reload the page."
+}

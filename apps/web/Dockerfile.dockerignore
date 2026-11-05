@@ -4,5 +4,8 @@
 !package-lock.json
 !.npmrc
 !apps/web/
-apps/web/node_modules/
+!packages/contracts/package.json
+!packages/contracts/bindings/
+!packages/ui/
+**/node_modules/
 apps/web/dist/

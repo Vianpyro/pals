@@ -7,10 +7,11 @@
     "dev": "vite",
     "build": "vite build",
     "check": "if find src -name \"*.svelte\" | grep -q .; then svelte-check --fail-on-warnings; else svelte-check; fi",
-    "test": "node --test \"scripts/*.test.js\"",
+    "test": "node --test \"scripts/*.test.js\" \"locales/*.test.js\"",
     "budget": "node scripts/size-budget.js dist index.html=50"
   },
   "dependencies": {
+    "@log791/ui": "*",
     "svelte": "5.57.3"
   },
   "devDependencies": {

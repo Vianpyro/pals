@@ -1,0 +1,40 @@
+{
+  "signIn.id": "Identifiant",
+  "signIn.password": "Mot de passe",
+  "signIn.submit": "Se connecter",
+  "signIn.refused": "Identifiant ou mot de passe refusé.",
+  "signIn.directoryDown": "L'annuaire ne répond pas, réessayez plus tard.",
+  "signIn.greeting": "Bonjour, {name}.",
+  "signOut": "Se déconnecter",
+
+  "server.unreachable": "Serveur injoignable.",
+  "server.starting": "Le serveur démarre ou ne répond pas : réessayez dans un instant.",
+  "server.error": "Erreur {status}.",
+
+  "catalog.title": "Exercices",
+  "catalog.unknownCourse": "Ce cours n'existe pas.",
+  "catalog.empty": "Aucun exercice publié pour l'instant.",
+  "catalog.until": "jusqu'au {at, date, long} à {at, time, short}",
+  "catalog.opensOn": "ouvre le {at, date, long} à {at, time, short}",
+  "catalog.notScheduled": "pas encore planifié",
+  "catalog.closed": "fermé",
+
+  "exercise.notOpen": "Cet exercice n'est pas ouvert.",
+  "exercise.notFound": "Cet exercice n'existe pas.",
+  "exercise.source": "Code {language}",
+  "exercise.submit": "Soumettre",
+  "exercise.history": "Vos soumissions",
+  "exercise.historyUnavailable": "Historique indisponible (erreur {status}).",
+  "exercise.run": "{at, date, long} à {at, time, short} — {status}",
+
+  "submission.invalid": "Le code est vide ou dépasse 1 Mio.",
+  "submission.sessionExpired": "Session expirée : reconnectez-vous.",
+
+  "run.waiting": "En attente d'un juge…",
+  "run.running": "Correction en cours…",
+  "run.passed": "Réussi : tous les tests passent.",
+  "run.notPassed": "Échoué : au moins un test ne passe pas.",
+  "run.replaced": "Remplacée par une soumission plus récente.",
+  "run.failed": "La correction a échoué : prévenez l'enseignant.",
+  "run.unknown": "État inconnu : rechargez la page."
+}

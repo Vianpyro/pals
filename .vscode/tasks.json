@@ -36,9 +36,9 @@
     },
     {
       "label": "web: check",
-      "detail": "Svelte check, tests, build and size budget as the image build does, then nginx's headers",
+      "detail": "Type checks, tests of every package, build and size budget as the image build does, then nginx's headers",
       "type": "shell",
-      "command": "npm run check -w apps/web && npm test -w apps/web && npm run build -w apps/web && npm run budget -w apps/web && bash tests/web/headers.sh",
+      "command": "npm run check --workspaces --if-present && npm test --workspaces --if-present && npm run build -w apps/web && npm run budget -w apps/web && bash tests/web/headers.sh",
       "problemMatcher": []
     },
     {

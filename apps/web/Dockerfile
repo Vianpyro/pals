@@ -8,11 +8,15 @@ WORKDIR /src
 # Manifests first: the install layer is reused until a dependency changes
 COPY package.json package-lock.json .npmrc ./
 COPY apps/web/package.json apps/web/
+COPY packages/contracts/package.json packages/contracts/
+COPY packages/ui/package.json packages/ui/
 RUN npm ci && npm audit signatures
 
+COPY packages/contracts/bindings packages/contracts/bindings
+COPY packages/ui packages/ui
 COPY apps/web apps/web
-RUN npm run check -w apps/web \
-    && npm test -w apps/web \
+RUN npm run check --workspaces --if-present \
+    && npm test --workspaces --if-present \
     && npm run build -w apps/web \
     && npm run budget -w apps/web \
     && rm -r apps/web/dist/.vite

@@ -1,0 +1,9 @@
+{
+  "name": "@log791/contracts",
+  "private": true,
+  "type": "module",
+  "//": "The TypeScript twin of the Rust types, written by cargo test (ts-rs): types only, nothing runs",
+  "exports": {
+    "./*": "./bindings/*.ts"
+  }
+}
