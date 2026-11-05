@@ -6,7 +6,7 @@ use axum::{
     http::StatusCode,
 };
 use contracts::{Id, Run, RunStatus};
-use sqlx::PgPool;
+use sqlx::{PgPool, types::time::OffsetDateTime};
 use uuid::Uuid;
 
 use super::session::Account;
@@ -38,28 +38,65 @@ fn internal_error(context: &str, error: impl std::fmt::Display) -> StatusCode {
     StatusCode::INTERNAL_SERVER_ERROR
 }
 
+fn run(
+    id: Uuid,
+    state: JobState,
+    passed: Option<bool>,
+    enqueued_at: OffsetDateTime,
+) -> Result<Run, StatusCode> {
+    let status = status(state, passed)
+        .ok_or_else(|| internal_error("runs", format!("job {id} is done without a result")))?;
+    Ok(Run {
+        id,
+        status,
+        enqueued_at,
+    })
+}
+
+pub(super) async fn one(pool: &PgPool, id: Uuid, author: &str) -> Result<Option<Run>, StatusCode> {
+    sqlx::query!(
+        r#"
+            SELECT id AS "id!", state AS "state!: JobState", passed, enqueued_at AS "enqueued_at!"
+            FROM runs WHERE id = $1 AND author = $2
+        "#,
+        id,
+        author
+    )
+    .fetch_optional(pool)
+    .await
+    .map_err(|error| internal_error("run", error))?
+    .map(|row| run(row.id, row.state, row.passed, row.enqueued_at))
+    .transpose()
+}
+
+pub(super) async fn latest(pool: &PgPool, author: &str) -> Result<Vec<Run>, StatusCode> {
+    sqlx::query!(
+        r#"
+            SELECT DISTINCT ON (course, exercise)
+                id AS "id!", state AS "state!: JobState", passed, enqueued_at AS "enqueued_at!"
+                FROM runs WHERE author = $1
+                ORDER BY course, exercise, enqueued_at DESC, id DESC
+        "#,
+        author
+    )
+    .fetch_all(pool)
+    .await
+    .map_err(|error| internal_error("latest runs", error))?
+    .into_iter()
+    .map(|row| run(row.id, row.state, row.passed, row.enqueued_at))
+    .collect()
+}
+
 pub(super) async fn progress(
     Account(author): Account,
     State(pool): State<PgPool>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<RunStatus>, StatusCode> {
     // Someone else's job is not found rather than forbidden: a 403 would confirm it exists
-    let row = sqlx::query!(
-        r#"
-            SELECT state AS "state!: JobState", passed
-            FROM runs WHERE id = $1 AND author = $2
-        "#,
-        id,
-        author
-    )
-    .fetch_optional(&pool)
-    .await
-    .map_err(|error| internal_error("progress", error))?
-    .ok_or(StatusCode::NOT_FOUND)?;
-
-    status(row.state, row.passed)
-        .map(Json)
-        .ok_or_else(|| internal_error("progress", format!("job {id} is done without a result")))
+    let run = one(&pool, id, &author)
+        .await?
+        .ok_or(StatusCode::NOT_FOUND)?;
+    Ok(Json(run.status))
 }
 
 // No gate: the student's own runs, not content; they stay readable once the exercise closes
@@ -68,7 +105,7 @@ pub(super) async fn history(
     State(pool): State<PgPool>,
     Path((course, exercise)): Path<(Id, Id)>,
 ) -> Result<Json<Vec<Run>>, StatusCode> {
-    let rows = sqlx::query!(
+    sqlx::query!(
         r#"
             SELECT id AS "id!", state AS "state!: JobState", passed, enqueued_at AS "enqueued_at!"
             FROM runs
@@ -81,24 +118,11 @@ pub(super) async fn history(
     )
     .fetch_all(&pool)
     .await
-    .map_err(|error| internal_error("history", error))?;
-
-    rows.into_iter()
-        .map(|row| {
-            let status = status(row.state, row.passed).ok_or_else(|| {
-                internal_error(
-                    "history",
-                    format!("job {} is done without a result", row.id),
-                )
-            })?;
-            Ok(Run {
-                id: row.id,
-                status,
-                enqueued_at: row.enqueued_at,
-            })
-        })
-        .collect::<Result<_, _>>()
-        .map(Json)
+    .map_err(|error| internal_error("history", error))?
+    .into_iter()
+    .map(|row| run(row.id, row.state, row.passed, row.enqueued_at))
+    .collect::<Result<_, _>>()
+    .map(Json)
 }
 
 #[cfg(test)]

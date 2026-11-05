@@ -1,0 +1,78 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT id AS \"id!\", state AS \"state!: JobState\", passed, enqueued_at AS \"enqueued_at!\"\n            FROM runs WHERE id = $1 AND author = $2\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "runs",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "state!: JobState",
+        "type_info": {
+          "Custom": {
+            "name": "job_state",
+            "kind": {
+              "Enum": [
+                "waiting",
+                "running",
+                "done",
+                "replaced",
+                "failed"
+              ]
+            }
+          }
+        },
+        "origin": {
+          "Table": {
+            "table": "runs",
+            "name": "state"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "passed",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "runs",
+            "name": "passed"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "enqueued_at!",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "runs",
+            "name": "enqueued_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": [
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "77a3a9ee9ba36c056f66235792f85d345886ae8141aaba0ae482d67dd1965195"
+}

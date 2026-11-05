@@ -19,6 +19,7 @@ dependencies = [
  "axum",
  "content",
  "contracts",
+ "futures-util",
  "getrandom",
  "ldap3",
  "sqlx",

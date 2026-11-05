@@ -16,13 +16,17 @@ use axum::{
 };
 use contracts::{Credentials, Id, Identity, Submission, Submitted};
 use directory::{Directory, SignInError};
+use notify::RunChanged;
 use session::Account;
 use sqlx::{PgPool, migrate::Migrator};
+use tokio::sync::broadcast;
 use uuid::Uuid;
 
 mod catalog;
 mod directory;
+mod events;
 mod gate;
+mod notify;
 mod runs;
 mod schedule;
 mod session;
@@ -56,6 +60,7 @@ struct AppState {
     pool: PgPool,
     directory: Arc<Directory>,
     courses: Arc<path::Path>,
+    runs: broadcast::Sender<RunChanged>,
 }
 
 impl FromRef<AppState> for PgPool {
@@ -76,11 +81,21 @@ impl FromRef<AppState> for Arc<path::Path> {
     }
 }
 
+impl FromRef<AppState> for broadcast::Sender<RunChanged> {
+    fn from_ref(state: &AppState) -> Self {
+        state.runs.clone()
+    }
+}
+
 fn app(pool: PgPool, directory: Directory, courses: PathBuf) -> Router {
+    let runs = notify::channel();
+    tokio::spawn(notify::forward(pool.clone(), runs.clone()));
+
     let state = AppState {
         pool,
         directory: Arc::new(directory),
         courses: Arc::from(courses),
+        runs,
     };
     Router::new()
         .route("/courses/{course}/exercises", get(catalog::catalog))
@@ -92,6 +107,7 @@ fn app(pool: PgPool, directory: Directory, courses: PathBuf) -> Router {
             "/courses/{course}/exercises/{exercise}/submissions",
             get(runs::history),
         )
+        .route("/events", get(events::events))
         .route("/health", get(|| async { StatusCode::OK }))
         .route("/sessions", post(sign_in).delete(sign_out))
         .route("/submissions", post(submit))
@@ -220,6 +236,52 @@ mod tests {
     const RIGHT_PASSWORD: &str = r#"{"id": "etudiant1", "password": "log791-dev"}"#;
     const WRONG_PASSWORD: &str = r#"{"id": "etudiant1", "password": "wrong"}"#;
     const SUM: &str = r#"{"course": "log200", "exercise": "sum", "language_pack": "python", "source": "print(0)"}"#;
+
+    struct Events {
+        body: axum::body::BodyDataStream,
+        pending: String,
+    }
+
+    impl Events {
+        async fn open(pool: &PgPool, cookie: &str) -> (StatusCode, Events) {
+            let request = Request::get("/events")
+                .header(header::COOKIE, cookie)
+                .body(Body::empty())
+                .unwrap();
+            let response = app(pool.clone(), Directory::unreachable(), PathBuf::new())
+                .oneshot(request)
+                .await
+                .unwrap();
+            let status = response.status();
+            let body = response.into_body().into_data_stream();
+            (
+                status,
+                Events {
+                    body,
+                    pending: String::new(),
+                },
+            )
+        }
+
+        async fn next(&mut self) -> Option<String> {
+            use futures_util::StreamExt;
+            loop {
+                if let Some(end) = self.pending.find("\n\n") {
+                    let event: String = self.pending.drain(..end + 2).collect();
+                    match event.lines().find_map(|line| line.strip_prefix("data: ")) {
+                        Some(data) => return Some(data.to_string()),
+                        None => continue, // a keep-alive comment
+                    }
+                }
+                let chunk =
+                    tokio::time::timeout(std::time::Duration::from_secs(2), self.body.next())
+                        .await
+                        .ok()??
+                        .unwrap();
+                self.pending.push_str(std::str::from_utf8(&chunk).unwrap());
+            }
+        }
+    }
 
     async fn sign_in_with(pool: &PgPool, directory: Directory, body: &'static str) -> Response {
         let request = Request::post("/sessions")
@@ -385,6 +447,22 @@ mod tests {
     async fn open_sum(pool: &PgPool, name: &str) -> PathBuf {
         schedule_sum(pool, "-1 hour", Some("1 hour")).await;
         published_courses(name)
+    }
+
+    async fn listening(pool: &PgPool) {
+        for _ in 0..100 {
+            let listeners: i64 = sqlx::query_scalar(
+                "SELECT count(*) FROM pg_stat_activity WHERE query = 'LISTEN \"runs\"'",
+            )
+            .fetch_one(pool)
+            .await
+            .unwrap();
+            if listeners > 0 {
+                return;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        }
+        panic!("the API never listened");
     }
 
     #[tokio::test]
@@ -925,5 +1003,71 @@ mod tests {
     #[ignore = "needs PostgreSQL"]
     async fn history_without_session_is_unauthorized(pool: PgPool) {
         assert_eq!(get_history(&pool, "").await.0, StatusCode::UNAUTHORIZED);
+    }
+
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL"]
+    async fn events_start_with_the_latest_run_of_each_exercise(pool: PgPool) {
+        enqueue_at(&pool, "etudiant1", "sum", "2026-01-01T08:00:00Z").await;
+        let newer = enqueue_at(&pool, "etudiant1", "sum", "2026-01-01T09:00:00Z").await;
+        let product = enqueue_at(&pool, "etudiant1", "product", "2026-01-01T08:00:00Z").await;
+        enqueue_at(&pool, "etudiant2", "sum", "2026-01-01T10:00:00Z").await;
+
+        let (status, mut events) = Events::open(&pool, &signed_in(&pool).await).await;
+        assert_eq!(status, StatusCode::OK);
+        // By course, then exercise: product before sum
+        assert_eq!(
+            events.next().await,
+            Some(format!(
+                r#"{{"id":"{product}","state":"waiting","enqueued_at":"2026-01-01T08:00:00Z"}}"#
+            ))
+        );
+        assert_eq!(
+            events.next().await,
+            Some(format!(
+                r#"{{"id":"{newer}","state":"waiting","enqueued_at":"2026-01-01T09:00:00Z"}}"#
+            ))
+        );
+        assert_eq!(events.next().await, None);
+    }
+
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL"]
+    async fn events_follow_ones_runs_and_no_one_elses(pool: PgPool) {
+        let (_, mut events) = Events::open(&pool, &signed_in(&pool).await).await;
+        listening(&pool).await;
+
+        let mine = enqueue(&pool).await;
+        let next = events.next().await.unwrap();
+        assert!(
+            next.contains(&format!(r#""id":"{mine}","state":"waiting""#)),
+            "{next}"
+        );
+
+        judge(&pool, mine, "{passed}").await;
+        let mut next = events.next().await.unwrap();
+        while next.contains(r#""state":"running""#) {
+            next = events.next().await.unwrap();
+        }
+        assert!(
+            next.contains(&format!(r#""id":"{mine}","state":"done","passed":true"#)),
+            "{next}"
+        );
+
+        enqueue_at(&pool, "etudiant2", "sum", "2026-01-01T08:00:00Z").await;
+        let second = enqueue_at(&pool, "etudiant1", "product", "2026-01-01T08:00:00Z").await;
+        let next = loop {
+            let next = events.next().await.unwrap();
+            if !next.contains(&mine.to_string()) {
+                break next;
+            }
+        };
+        assert!(next.contains(&second.to_string()), "{next}");
+    }
+
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL"]
+    async fn events_without_session_are_unauthorized(pool: PgPool) {
+        assert_eq!(Events::open(&pool, "").await.0, StatusCode::UNAUTHORIZED);
     }
 }
