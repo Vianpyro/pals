@@ -1,43 +1,13 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="en">
 
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>P.A.L.S.</title>
-    <script type="module" src="./app.js"></script>
+    <script type="module" src="./main.ts"></script>
 </head>
 
-<body>
-    <main>
-        <h1>P.A.L.S.</h1>
-
-        <form id="sign-in" hidden>
-            <label>Identifiant <input name="id" autocomplete="username" required></label>
-            <label>Mot de passe <input name="password" type="password" autocomplete="current-password" required></label>
-            <button>Se connecter</button>
-        </form>
-
-        <section id="course" hidden>
-            <button id="sign-out" type="button">Se déconnecter</button>
-            <h2 id="catalog-title">Exercices</h2>
-            <ul id="catalog" aria-labelledby="catalog-title"></ul>
-
-            <section id="exercise" hidden>
-                <pre id="statement"></pre>
-                <form id="submission">
-                    <label for="source">Code Python</label><br>
-                    <textarea id="source" rows="15" cols="80" spellcheck="false" required></textarea><br>
-                    <button>Soumettre</button>
-                </form>
-                <h3 id="history-title">Vos soumissions</h3>
-                <!-- reversed: the newest run, listed first, carries the highest number -->
-                <ol id="history" reversed aria-labelledby="history-title"></ol>
-            </section>
-        </section>
-
-        <p id="status" role="status"></p>
-    </main>
-</body>
+<body></body>
 
 </html>

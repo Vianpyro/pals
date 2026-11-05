@@ -3,8 +3,14 @@
   "compilerOptions": {
     "strict": true,
     "noEmit": true,
-    "types": ["svelte"]
+    // What Safari 16.4 and Chromium 111 run (vite.config.js)
+    "target": "es2022",
+    "lib": ["es2022", "dom", "dom.iterable"],
+    "resolveJsonModule": true,
+    // Node runs the unit tests as written, stripping the types: imports name their .ts file
+    "allowImportingTsExtensions": true,
+    "erasableSyntaxOnly": true,
+    "types": ["svelte", "vite/client", "node"]
   },
-  // src/app.js is the plain page that the Svelte rewrite replaces (spec D14): not type-checked
   "include": ["src/**/*.ts", "src/**/*.svelte"]
 }
