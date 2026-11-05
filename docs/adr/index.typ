@@ -47,6 +47,7 @@
   [#adr("0035", body: "0035")], [Completion computed in the browser], [Proposed],
   [#adr("0036", body: "0036")], [Parallel programming exercises], [Proposed],
   [#adr("0037", body: "0037")], [Web interface stack], [Proposed],
+  [#adr("0038", body: "0038")], [Draft protocol], [Proposed],
 )
 
 Relations declared in the status of each ADR: a solid arrow refines, a thick arrow supersedes, a dotted arrow applies, extends or feeds the ADR it points to. ADRs without a declared relation are not shown.
@@ -85,6 +86,7 @@ Relations declared in the status of each ADR: a solid arrow refines, a thick arr
     A0035[0035 Browser completion]
     A0036[0036 Parallel programming]
     A0037[0037 Web stack]
+    A0038[0038 Draft protocol]
 
     A0006 ==> A0003
     A0010 --> A0001
@@ -139,6 +141,7 @@ Relations declared in the status of each ADR: a solid arrow refines, a thick arr
     A0036 -.->|extends| A0013
     A0037 -.->|settles| A0011
     A0037 -.->|bundles| A0034
+    A0038 -.->|extends| A0015
   ",
   document-context: true,
   width: 100%,
@@ -181,3 +184,4 @@ Relations declared in the status of each ADR: a solid arrow refines, a thick arr
 #include "0035-local-completion.typ"
 #include "0036-parallel-programming.typ"
 #include "0037-web-stack.typ"
+#include "0038-draft-protocol.typ"
