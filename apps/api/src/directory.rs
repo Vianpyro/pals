@@ -2,8 +2,8 @@
 
 use std::{env, time::Duration};
 
+use contracts::Identity;
 use ldap3::{Ldap, LdapConnAsync, LdapError, ResultEntry, Scope, SearchEntry, ldap_escape};
-use serde::Serialize;
 use tokio::time;
 
 // For the whole sing-in: a directory that does not answer refuses it instead of holding the request
@@ -21,13 +21,6 @@ pub(super) struct Directory {
     user_attribute: String,
     bind_dn: String,
     bind_password: String,
-}
-
-#[derive(Debug, PartialEq, Eq, Serialize)]
-pub(super) struct Identity {
-    pub(super) id: String,
-    pub(super) name: Option<String>,
-    pub(super) email: Option<String>,
 }
 
 #[derive(Debug, PartialEq, Eq)]

@@ -14,9 +14,8 @@ use axum::{
     http::{HeaderMap, HeaderName, StatusCode, header},
     routing::{get, post},
 };
-use contracts::Id;
-use directory::{Directory, Identity, SignInError};
-use serde::{Deserialize, Serialize};
+use contracts::{Credentials, Id, Identity, Submission, Submitted};
+use directory::{Directory, SignInError};
 use session::Account;
 use sqlx::{PgPool, migrate::Migrator};
 use uuid::Uuid;
@@ -96,15 +95,8 @@ fn app(pool: PgPool, directory: Directory, courses: PathBuf) -> Router {
         .route("/health", get(|| async { StatusCode::OK }))
         .route("/sessions", post(sign_in).delete(sign_out))
         .route("/submissions", post(submit))
-        .route("/submissions/{id}", get(progress))
+        .route("/submissions/{id}", get(runs::progress))
         .with_state(state)
-}
-
-// No Debug: it holds the password
-#[derive(Deserialize)]
-struct Credentials {
-    id: String,
-    password: String,
 }
 
 async fn sign_in(
@@ -151,19 +143,6 @@ async fn statement(
 ) -> Result<String, StatusCode> {
     let dir = gate::open_exercise(&pool, &courses, &course, &exercise).await?;
     fs::read_to_string(dir.join("statement.md")).map_err(gate::status_of)
-}
-
-#[derive(Deserialize)]
-struct Submission {
-    course: Id,
-    exercise: Id,
-    language_pack: Id,
-    source: String,
-}
-
-#[derive(Serialize)]
-struct Submitted {
-    id: Uuid,
 }
 
 async fn submit(
@@ -226,36 +205,6 @@ async fn enqueue_replacing(
 
     transaction.commit().await?;
     Ok(id)
-}
-
-#[derive(Serialize)]
-struct Progress {
-    state: String,
-    passed: Option<bool>,
-}
-
-async fn progress(
-    Account(author): Account,
-    State(pool): State<PgPool>,
-    Path(id): Path<Uuid>,
-) -> Result<Json<Progress>, StatusCode> {
-    // Someone else's job is not found rather than forbidden: a 403 would confirm it exists
-    let progress = sqlx::query_as!(
-        Progress,
-        r#"
-            SELECT state::text AS "state!", passed AS "passed?"
-            FROM runs WHERE id = $1 AND author = $2
-        "#,
-        id,
-        author
-    )
-    .fetch_optional(&pool)
-    .await
-    .map_err(|error| {
-        eprintln!("api: progress: {error}");
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
-    progress.map(Json).ok_or(StatusCode::NOT_FOUND)
 }
 
 #[cfg(test)]
@@ -666,10 +615,7 @@ mod tests {
         let job = enqueue(&pool).await;
         assert_eq!(
             get_submission(&pool, &signed_in(&pool).await, &job.to_string()).await,
-            (
-                StatusCode::OK,
-                r#"{"state":"waiting","passed":null}"#.to_string()
-            )
+            (StatusCode::OK, r#"{"state":"waiting"}"#.to_string())
         );
     }
 
@@ -848,10 +794,7 @@ mod tests {
         );
         assert_eq!(
             get_submission(&pool, &cookie, &previous.to_string()).await,
-            (
-                StatusCode::OK,
-                r#"{"state":"replaced","passed":null}"#.to_string()
-            )
+            (StatusCode::OK, r#"{"state":"replaced"}"#.to_string())
         );
         assert_eq!(waiting_jobs(&pool).await, 1);
     }
@@ -872,10 +815,7 @@ mod tests {
         );
         assert_eq!(
             get_submission(&pool, &cookie, &previous.to_string()).await,
-            (
-                StatusCode::OK,
-                r#"{"state":"running","passed":null}"#.to_string()
-            )
+            (StatusCode::OK, r#"{"state":"running"}"#.to_string())
         );
     }
 
@@ -960,7 +900,7 @@ mod tests {
                 StatusCode::OK,
                 format!(
                     concat!(
-                        r#"[{{"id":"{newer}","state":"waiting","passed":null,"enqueued_at":"2026-01-01T09:00:00Z"}},"#,
+                        r#"[{{"id":"{newer}","state":"waiting","enqueued_at":"2026-01-01T09:00:00Z"}},"#,
                         r#"{{"id":"{older}","state":"done","passed":false,"enqueued_at":"2026-01-01T08:00:00Z"}}]"#
                     ),
                     newer = newer,

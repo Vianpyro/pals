@@ -1,25 +1,65 @@
-//! A student's past runs on an exercise, newest first (ADR-0030)
+//! A student's runs: one followed live, and their history on an exercise, newest first (ADR-0030)
 
 use axum::{
     Json,
     extract::{Path, State},
     http::StatusCode,
 };
-use contracts::Id;
-use serde::Serialize;
+use contracts::{Id, Run, RunStatus};
 use sqlx::PgPool;
-use time::OffsetDateTime;
 use uuid::Uuid;
 
 use super::session::Account;
 
-#[derive(Serialize)]
-pub(super) struct Run {
-    id: Uuid,
-    state: String,
-    passed: Option<bool>,
-    #[serde(with = "time::serde::rfc3339")]
-    enqueued_at: OffsetDateTime,
+#[derive(Debug, sqlx::Type)]
+#[sqlx(type_name = "job_state", rename_all = "lowercase")]
+enum JobState {
+    Waiting,
+    Running,
+    Done,
+    Replaced,
+    Failed,
+}
+
+/// What the student sees of a job. None for a done job without a result, which the
+/// `jobs_result_when_done` constraint forbids: a broken database is a 500 not a guess
+fn status(state: JobState, passed: Option<bool>) -> Option<RunStatus> {
+    Some(match state {
+        JobState::Waiting => RunStatus::Waiting,
+        JobState::Running => RunStatus::Running,
+        JobState::Done => RunStatus::Done { passed: passed? },
+        JobState::Replaced => RunStatus::Replaced,
+        JobState::Failed => RunStatus::Failed,
+    })
+}
+
+fn internal_error(context: &str, error: impl std::fmt::Display) -> StatusCode {
+    eprintln!("api: {context}: {error}");
+    StatusCode::INTERNAL_SERVER_ERROR
+}
+
+pub(super) async fn progress(
+    Account(author): Account,
+    State(pool): State<PgPool>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<RunStatus>, StatusCode> {
+    // Someone else's job is not found rather than forbidden: a 403 would confirm it exists
+    let row = sqlx::query!(
+        r#"
+            SELECT state AS "state!: JobState", passed
+            FROM runs WHERE id = $1 AND author = $2
+        "#,
+        id,
+        author
+    )
+    .fetch_optional(&pool)
+    .await
+    .map_err(|error| internal_error("progress", error))?
+    .ok_or(StatusCode::NOT_FOUND)?;
+
+    status(row.state, row.passed)
+        .map(Json)
+        .ok_or_else(|| internal_error("progress", format!("job {id} is done without a result")))
 }
 
 // No gate: the student's own runs, not content; they stay readable once the exercise closes
@@ -28,10 +68,9 @@ pub(super) async fn history(
     State(pool): State<PgPool>,
     Path((course, exercise)): Path<(Id, Id)>,
 ) -> Result<Json<Vec<Run>>, StatusCode> {
-    let runs = sqlx::query_as!(
-        Run,
+    let rows = sqlx::query!(
         r#"
-            SELECT id AS "id!", state::text AS "state!", passed, enqueued_at AS "enqueued_at!"
+            SELECT id AS "id!", state AS "state!: JobState", passed, enqueued_at AS "enqueued_at!"
             FROM runs
             WHERE author = $1 AND course = $2::text AND exercise = $3::text
             ORDER BY enqueued_at DESC, id DESC
@@ -42,10 +81,41 @@ pub(super) async fn history(
     )
     .fetch_all(&pool)
     .await
-    .map_err(|error| {
-        eprintln!("api: history: {error}");
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
+    .map_err(|error| internal_error("history", error))?;
 
-    Ok(Json(runs))
+    rows.into_iter()
+        .map(|row| {
+            let status = status(row.state, row.passed).ok_or_else(|| {
+                internal_error(
+                    "history",
+                    format!("job {} is done without a result", row.id),
+                )
+            })?;
+            Ok(Run {
+                id: row.id,
+                status,
+                enqueued_at: row.enqueued_at,
+            })
+        })
+        .collect::<Result<_, _>>()
+        .map(Json)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_a_done_job_has_a_verdict() {
+        assert_eq!(
+            status(JobState::Done, Some(true)),
+            Some(RunStatus::Done { passed: true })
+        );
+        assert_eq!(status(JobState::Waiting, None), Some(RunStatus::Waiting));
+    }
+
+    #[test]
+    fn a_done_job_without_a_result_is_refused() {
+        assert_eq!(status(JobState::Done, None), None);
+    }
 }

@@ -7,29 +7,17 @@ use axum::{
     extract::{Path, State},
     http::StatusCode,
 };
-use contracts::Id;
-use serde::Serialize;
+use contracts::{CatalogEntry, Id};
 use sqlx::PgPool;
-use time::OffsetDateTime;
 
 use super::{gate, schedule, session::Account};
-
-#[derive(Serialize)]
-pub(super) struct Entry {
-    id: Id,
-    open: bool,
-    #[serde(with = "time::serde::rfc3339::option")]
-    opens_at: Option<OffsetDateTime>,
-    #[serde(with = "time::serde::rfc3339::option")]
-    closes_at: Option<OffsetDateTime>,
-}
 
 pub(super) async fn catalog(
     Account(_): Account,
     State(pool): State<PgPool>,
     State(courses): State<Arc<path::Path>>,
     Path(course): Path<Id>,
-) -> Result<Json<Vec<Entry>>, StatusCode> {
+) -> Result<Json<Vec<CatalogEntry>>, StatusCode> {
     let ids = content::exercises(&courses.join(course.as_str())).map_err(gate::status_of)?;
     // One instant for the whole list: two exercises never disagree about what time it is
     let now = SystemTime::now();
@@ -41,7 +29,7 @@ pub(super) async fn catalog(
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
         let window = schedule.window();
-        entries.push(Entry {
+        entries.push(CatalogEntry {
             id,
             open: schedule.is_open(now),
             opens_at: window.map(|window| window.opens_at.into()),

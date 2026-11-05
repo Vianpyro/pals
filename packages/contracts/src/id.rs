@@ -2,10 +2,11 @@
 
 use std::{error::Error, fmt, str::FromStr};
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, de};
+use ts_rs::TS;
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Deserialize, Serialize)]
-#[serde(try_from = "String")]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, TS)]
+#[ts(export)]
 pub struct Id(String);
 
 impl Id {
@@ -23,6 +24,15 @@ impl TryFrom<String> for Id {
         } else {
             Err(InvalidId(value))
         }
+    }
+}
+
+// By hand rather than `#[serde(try_from = "String")]`, which ts-rs cannot read and warns about on every build
+impl<'de> Deserialize<'de> for Id {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        String::deserialize(deserializer)?
+            .try_into()
+            .map_err(de::Error::custom)
     }
 }
 
@@ -69,6 +79,14 @@ mod tests {
             "log200-lab-1".parse::<Id>().unwrap().as_str(),
             "log200-lab-1"
         );
+    }
+
+    #[test]
+    fn json_is_checked_like_a_path() {
+        let id: Id = serde_json::from_str(r#""sum""#).unwrap();
+        assert_eq!(id.as_str(), "sum");
+        let error = serde_json::from_str::<Id>(r#""../sum""#).unwrap_err();
+        assert!(error.to_string().contains("invalid identifier"), "{error}");
     }
 
     #[test]
