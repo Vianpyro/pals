@@ -1,0 +1,6 @@
+{
+  "api": 40,
+  "judge_each": 16,
+  "overhead_each": 100,
+  "postgres": 300
+}

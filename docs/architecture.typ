@@ -673,6 +673,8 @@ The actual load therefore depends heavily on the students' behavior over time.
   PostgreSQL stays within its range even at the ceiling; the number of judge VMs is what varies. The load tests measure the two rates assumed here.
 ]
 
+A first measure already refutes the duration for Java, and judges do not add up: a job takes longer when more of them share a machine (#adr("0039")). The table above is therefore a lower bound, kept to show how the load is reasoned about.
+
 == Sizing <arch-sizing>
 
 The system must allow the number of judge workers to be increased independently of the main application.
@@ -702,6 +704,10 @@ This architecture allows capacity to be adjusted without modifying the pedagogic
 
 #decision(id: "ADR-0021")[
   Each judge VM keeps a floor of permanent judges and starts more, up to a measured cap, while jobs wait in the queue; an on-demand judge leaves after being idle and is never stopped from outside. The floor is raised before each scheduled exam session.
+]
+
+#decision(id: "ADR-0039")[
+  A workflow computes a minimum and a recommended configuration per role from the measured load, and its latest report is the reference. A judge machine is sized from the rate it sustains at its ceiling, which is also the cap of #adr("0021"); the demand then gives the number of machines.
 ]
 
 == Cache <arch-cache>

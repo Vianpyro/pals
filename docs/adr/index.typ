@@ -48,6 +48,7 @@
   [#adr("0036", body: "0036")], [Parallel programming exercises], [Proposed],
   [#adr("0037", body: "0037")], [Web interface stack], [Proposed],
   [#adr("0038", body: "0038")], [Draft protocol], [Proposed],
+  [#adr("0039", body: "0039")], [Hardware sizing measured in CI], [Proposed],
 )
 
 Relations declared in the status of each ADR: a solid arrow refines, a thick arrow supersedes, a dotted arrow applies, extends or feeds the ADR it points to. ADRs without a declared relation are not shown.
@@ -87,6 +88,7 @@ Relations declared in the status of each ADR: a solid arrow refines, a thick arr
     A0036[0036 Parallel programming]
     A0037[0037 Web stack]
     A0038[0038 Draft protocol]
+    A0039[0039 Measured sizing]
 
     A0006 ==> A0003
     A0010 --> A0001
@@ -142,6 +144,9 @@ Relations declared in the status of each ADR: a solid arrow refines, a thick arr
     A0037 -.->|settles| A0011
     A0037 -.->|bundles| A0034
     A0038 -.->|extends| A0015
+    A0039 -.->|feeds| A0021
+    A0039 -.->|validates| A0001
+    A0039 -.->|validates| A0010
   ",
   document-context: true,
   width: 100%,
@@ -185,3 +190,4 @@ Relations declared in the status of each ADR: a solid arrow refines, a thick arr
 #include "0036-parallel-programming.typ"
 #include "0037-web-stack.typ"
 #include "0038-draft-protocol.typ"
+#include "0039-measured-sizing.typ"
