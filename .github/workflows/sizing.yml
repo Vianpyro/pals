@@ -1,0 +1,51 @@
+# Minimum and recommended hardware per role, from the exam load measured in the dev container (ADR-0039).
+# Not on pull requests: it takes the better part of an hour, and shared runners are noisy.
+# Memory is what can fail this workflow; service times and CPU are reported as a trend.
+name: Sizing
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sizing-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  measure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+
+      # The bursts find a machine's ceiling for each pack: a queue that never empties, sized to last
+      # about a minute at each number of judges. The steady run sizes the web and database roles.
+      - uses: devcontainers/ci@v0.3
+        with:
+          push: never
+          runCmd: >-
+            bash .devcontainer/check.sh
+            && node --test tests/load/sizing.test.js
+            && mkdir -p sizing
+            && bash tests/load/run.sh 250 4 steady python 300 sizing/steady-python.json
+            && for judges in 1 2 4 8; do
+            bash tests/load/run.sh $((30 * judges)) "$judges" burst python 1 "sizing/burst-python-$judges.json" || exit 1;
+            done
+            && for judges in 1 2 4; do
+            bash tests/load/run.sh $((8 * judges)) "$judges" burst java 1 "sizing/burst-java-$judges.json" || exit 1;
+            done
+            && node tests/load/sizing.js tests/load/budget.json sizing/*.json > sizing/report.md
+
+      - name: Report
+        if: always() && hashFiles('sizing/report.md') != ''
+        run: cat sizing/report.md >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v7
+        if: always() && hashFiles('sizing/*') != ''
+        with:
+          name: sizing
+          path: sizing/
