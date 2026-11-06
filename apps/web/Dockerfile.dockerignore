@@ -7,5 +7,7 @@
 !packages/contracts/package.json
 !packages/contracts/bindings/
 !packages/ui/
+!examples/content/
 **/node_modules/
 apps/web/dist/
+apps/web/dist-demo/

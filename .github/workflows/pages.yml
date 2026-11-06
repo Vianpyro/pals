@@ -8,6 +8,11 @@ on:
       - docs/**
       - report/**
       - site/**
+      - apps/web/**
+      - packages/contracts/**
+      - packages/ui/**
+      - examples/**
+      - package-lock.json
       - .devcontainer/Dockerfile
       - .github/workflows/pages.yml
   pull_request:
@@ -16,8 +21,6 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 # Per ref, so a pull request never cancels a deployment from main.
 concurrency:
@@ -50,6 +53,11 @@ jobs:
       - name: Build
         run: sh site/build.sh
 
+      # npm runs only in the image's build stage, which holds no secret (spec D8). After site/build.sh,
+      # which empties _site: a deployment replaces the whole site, so the demo goes out with the documents.
+      - name: Build the demo
+        run: docker build --file apps/web/Dockerfile --target demo --output _site/demo .
+
       - if: github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@v5
         with:
@@ -59,6 +67,10 @@ jobs:
     needs: build
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    # Here only: the job that builds runs third-party code and must not hold them
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}

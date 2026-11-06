@@ -8,6 +8,8 @@ Originally developed for [LOG200 at ÉTS](https://www.etsmtl.ca/), PALS aims to 
 
 The architecture, Architecture Decision Records (ADRs) and project roadmap are publicly documented at <https://vianpyro.github.io/pals/>.
 
+A [live demo](https://vianpyro.github.io/pals/demo/) of the student's page is rebuilt on every push to `main`. It has no server: Python runs in your browser, not on the judge.
+
 ## Getting started
 
 The server code is a Cargo workspace in Rust 1.99.1 (ADR-0025), pinned by [`rust-toolchain.toml`](rust-toolchain.toml). Everything runs in the dev container: Rust, PostgreSQL, a local LDAP directory, Docker with gVisor, Typst and Ansible.

@@ -21,6 +21,15 @@ RUN npm run check --workspaces --if-present \
     && npm run budget -w apps/web \
     && rm -r apps/web/dist/.vite
 
+# The student's page with no server, for GitHub Pages (pages.yml), after the checks above. Only built
+# with --target demo; the examples stay out of the production image.
+FROM build AS demo-build
+COPY examples/content examples/content
+RUN npm run build:demo -w apps/web
+
+FROM scratch AS demo
+COPY --from=demo-build /src/apps/web/dist-demo /
+
 # Nothing runs from this image: the nginx role copies /srv/web onto the web VMs, where nginx serves it
 FROM scratch
 COPY --from=build /src/apps/web/dist /srv/web
