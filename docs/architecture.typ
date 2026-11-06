@@ -839,6 +839,10 @@ Three conceptual modes are currently envisioned:
   During an activity, a student runs a precheck (visible tests) or, if the activity allows it, a check (hidden tests too). The grade comes from the final submission, the last saved draft at the close, and appears only if the instructor allows it.
 ]
 
+#decision(id: "ADR-0042")[
+  A student can write personal tests on a standard I/O exercise: an input and an expected output, saved per test and run with the precheck, exams included. They are never graded and do not affect any other result.
+]
+
 == Safe Exam Browser <arch-safe-exam-browser>
 
 #ext("seb")[Safe Exam Browser] is considered a complementary mechanism rather than a feature the platform should reimplement.

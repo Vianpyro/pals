@@ -2,7 +2,7 @@
 
 == ADR-0040 — Precheck and check <adr-0040>
 
-*Status:* proposed. Refines #adr("0008"), #adr("0022"), #adr("0030") and #adr("0033"); extends #adr("0038"); applies #adr("0014"). \
+*Status:* proposed. Refines #adr("0008"), #adr("0022"), #adr("0030") and #adr("0033"); extends #adr("0038"); applies #adr("0014"). Extended by #adr("0042"). \
 *See also:* #arch("purpose-of-the-document")[architecture], sections #arch("exam-mode")[Exam mode] and #arch("load-and-performance")[Load and performance]; #adr("0007"), #adr("0020"), #adr("0032").
 
 === Context
