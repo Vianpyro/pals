@@ -2,7 +2,7 @@
 
 == ADR-0007 — Deterministic and fair performance measurement <adr-0007>
 
-*Status:* proposed; prototype to build, grading model to settle with the instructor. \
+*Status:* proposed; prototype to build, grade scale to confirm with the instructor. \
 *See also:* #arch("purpose-of-the-document")[architecture], sections #arch("resource-management")[Resource management] and #arch("load-and-performance")[Load and performance]; #adr("0001"), #adr("0002").
 
 === Context
@@ -47,17 +47,16 @@ Counting is only active during the call to the student's function, thanks to a m
 
 *Garbage collection* is not separated from the student's instructions: a solution that allocates more makes the collector work more, and that cost is legitimately its own. What matters is that collection is deterministic. With fixed inputs, a fixed heap and a serial collector, collections are triggered at the same points on every run. Python's reference counting is inline, and its cyclic collector is triggered by allocation counts. A collection that occurs at one input size but not the next creates a step in the count; the slope is therefore fitted over several sizes rather than computed from two.
 
-*Neutralizing the language.* A student is only compared with a reference solution *in the same language*. The main criterion is *complexity*: several input sizes are measured, then the log-log slope of the instruction differences between sizes is computed, which removes the startup cost. This slope does not depend on the language. Two grading models remain to be settled with the instructor:
+*Neutralizing the language.* A student is only compared with a reference solution *in the same language*. The main criterion is *complexity*: several input sizes are measured, then the log-log slope of the instruction differences between sizes is computed, which removes the startup cost. This slope does not depend on the language.
 
-- *Complexity verdict*: check that the slope does not exceed the reference's, within a tolerance. A single reference per exercise is enough.
-- *Full ranking*: rank first by complexity, then by the ratio to the instruction count of the same-language reference. This requires one reference per language and per exercise.
+*Grade scale.* Each exercise lists levels, from the best to the worst. A level gives the largest excess of slope over the reference's and the share of the performance points it earns: for example, 100% up to 0.2 above the reference and 60% up to 1.2 above it. A solution gets the first level it fits, and no points beyond the last. A single level makes this a pass or fail verdict. One reference per exercise is enough; a ranking by instruction count is set aside, since it needs one reference per language and per exercise. These points are separate from those of the test cases (#adr("0033")). The scale is to be confirmed with the instructor.
 
 Memory follows the same logic: the peak memory, minus the runtime's baseline, is compared with the reference's.
 
 *Two passes.* Measurement slows execution down. It is therefore never done while the student is waiting for an answer:
 
 - *Correctness pass*: native execution, with generous time limits. It is the only one that responds during the exam.
-- *Measurement pass*: it runs after the exam and only covers the *last* submission of each student for each exercise (one unique key per student–exercise pair). The queue is drained when the server is lightly loaded. Accuracy does not depend on it; the point is to leave the CPU to live judging.
+- *Measurement pass*: it runs after the exam and only covers the *final* submission of each student for each exercise (#adr("0040")). The queue is drained when the server is lightly loaded. Accuracy does not depend on it; the point is to leave the CPU to live judging.
 
 The measurement queue is a lower-priority queue in #ext("postgresql")[PostgreSQL] (#adr("0001")). No new component is added.
 
@@ -66,17 +65,17 @@ The measurement queue is a lower-priority queue in #ext("postgresql")[PostgreSQL
   flowchart TB
     subgraph EXAM[During the exam]
       direction LR
-      S[Submission] --> C[Correctness pass<br/>native, generous time limits]
+      S[Precheck or check] --> C[Correctness pass<br/>native, generous time limits]
       C --> V[Verdict to the student]
     end
     subgraph AFTER[After the exam, lower-priority queue]
       direction LR
-      L[Last submission of each<br/>student for each exercise] --> Q[Measurement pass<br/>QEMU user mode, instruction budget]
+      L[Final submission of each<br/>student for each exercise] --> Q[Measurement pass<br/>QEMU user mode, instruction budget]
       Q --> N[Instructions counted<br/>at several input sizes]
       N --> SL[Log-log slope]
       SL --> CMP[Compared with the reference<br/>in the same language]
     end
-    C -.-> L
+    EXAM -.->|session closes| AFTER
   ",
   document-context: true,
   width: 100%,
@@ -92,9 +91,9 @@ The measurement queue is a lower-priority queue in #ext("postgresql")[PostgreSQL
 - *Turnaround.* Computation time must be planned before grades are released: students $times$ exercises $times$ sizes $times$ duration of one measurement under QEMU.
 - *Libraries.* For each exercise, the instructor specifies the allowed libraries, for example `sorted()` or `heapq`.
 - *Questions to settle with the instructor:*
-  - the choice of grading model;
+  - the levels of the grade scale;
   - whether code that does not pass all tests is measured;
-  - which submission to measure if the last one fails while an earlier one passed;
+  - which submission to measure if the final one fails while an earlier check passed;
   - how the result is presented to the student (for example "O(n log n), 1.8$times$ the reference").
 
 #validation(id: "V-0007")[

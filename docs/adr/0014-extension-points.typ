@@ -28,7 +28,7 @@ Three rules:
   stroke: 0.5pt,
   [*Extension point*], [*Contract*], [*Initial implementations*],
   [Question type], [Item schema (public statement, private data), grader family, display component (#adr("0015"))], [The Q1 types: code, choice, key match, arrangement, essay],
-  [Activity mode], [Policy: time window, feedback shown, queue priority, SEB required, accommodations], [Practice, assignment, exam],
+  [Activity mode], [Policy: time window, feedback shown, check allowed (#adr("0040")), queue priority, SEB required, accommodations], [Practice, assignment, exam],
   [Language pack], [Image, compile and run commands, options, limits, capabilities (#adr("0013"))], [The P1 languages],
   [Test runner], [Exercise and artifact in, JSON report out (case, verdict code, message)], [Standard I/O, unit tests, SQL],
   [Judging service], [Provides a disposable environment to a runner, e.g. a database schema], [Ephemeral #ext("postgresql")[PostgreSQL], shared Oracle],

@@ -2,14 +2,14 @@
 
 == ADR-0008 — Running visible tests in the browser <adr-0008>
 
-*Status:* proposed; the gain is to be quantified by load testing. \
+*Status:* proposed; the gain is to be quantified by load testing. Refined by #adr("0040"). \
 *See also:* #arch("purpose-of-the-document")[architecture], sections #arch("webassembly")[WebAssembly], #arch("load-and-performance")[Load and performance] and #arch("exam-mode")[Exam mode]; #adr("0001"), #adr("0007").
 
 === Context
 
 During an exam, the time a student spends waiting on the queue is lost from their exam time. Giving it back is not a goal, since #ext("moodle")[Moodle] and #ext("ena")[Enaquiz] most likely do not allow it. The project instead aims to reduce the waiting caused by the platform itself.
 
-Each exercise is submitted automatically at the end of the exam. During the exam, the server therefore only receives *test runs*, started when the student clicks "test". The final submission does not wait for an immediate answer: its grading and its measurement (#adr("0007")) are deferred.
+Each exercise is submitted automatically at the end of the exam. During the exam, the server therefore only receives *test runs*, started when the student clicks "precheck" or "check" (#adr("0040")). The final submission does not wait for an immediate answer: its grading and its measurement (#adr("0007")) are deferred.
 
 Each exercise has about ten visible tests and some hidden tests. For each visible test, the student sees the expected output and the actual output. For hidden tests, they only see whether at least one fails.
 
@@ -73,26 +73,31 @@ Flow of a test run:
     alt retained language
       B->>W: run the visible tests
       W-->>B: results, displayed as they come in
-      opt all visible tests pass
+      opt precheck, all visible tests pass
+        B->>A: draft, no job
+      end
+      opt check, all visible tests pass
         B->>A: code
       end
     else other languages
       B->>A: code
     end
-    A->>J: job through the queue
-    J->>J: one compilation, hidden tests, visible tests
-    J-->>A: NOTIFY
-    A-->>B: result over SSE, browser/judge discrepancy reported
+    opt code sent
+      A->>J: job through the queue
+      J->>J: one compilation, visible tests, hidden tests on a check
+      J-->>A: NOTIFY
+      A-->>B: result over SSE, browser/judge discrepancy reported
+    end
   ",
   document-context: true,
   width: 100%,
 )
 
-The code is sent to the server *only if all visible tests pass*. Most attempts fail on a visible test and therefore never reach the server. The server runs the visible tests as well: the main cost is sandbox startup and compilation, so they add little, and they make it possible to detect a discrepancy between the browser and the judge, which is reported to the student.
+On a check, the code is sent to the server *only if all visible tests pass*, and a precheck that passes only saves the draft. Most attempts fail on a visible test and therefore never reach the server. On a check, the server runs the visible tests as well: the main cost is sandbox startup and compilation, so they add little, and they make it possible to detect a discrepancy between the browser and the judge, which is reported to the student.
 
 Server results arrive through *#ext("sse")[Server-Sent Events]*, in a single stream per student. The judge notifies the API through #ext("postgresql")[PostgreSQL]'s #ext("listen-notify")[`LISTEN`/`NOTIFY`]. No new component is added.
 
-On the server side, test runs share the same sandbox and a single compilation. Students are served in turn, with at most one run in progress per student. A new request replaces the previous one if it has not started yet. Hidden tests stop at the first failure.
+On the server side, test runs share the same sandbox and a single compilation. Students are served in turn, with at most one run in progress per student. A new request replaces the previous one if it has not started yet. The hidden tests of a check stop at the first failure, and do not run if a visible test fails.
 
 === Consequences
 
@@ -103,5 +108,5 @@ On the server side, test runs share the same sandbox and a single compilation. S
 - Compatibility with #ext("seb")[Safe Exam Browser] (WebAssembly, Web Workers, service workers) must be verified.
 
 #validation(id: "V-0008")[
-  Exam load test (about 250 students): compare the 95#super[th] percentile of the delay between clicking "test" and the server's answer, with and without in-browser execution. Measure, for each retained language, the rate of discrepancy between the browser and the judge. Verify that it works under Safe Exam Browser.
+  Exam load test (about 250 students): compare the 95#super[th] percentile of the delay between clicking "check" and the server's answer, with and without in-browser execution. Measure, for each retained language, the rate of discrepancy between the browser and the judge. Verify that it works under Safe Exam Browser.
 ]

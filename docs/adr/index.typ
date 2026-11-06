@@ -49,6 +49,7 @@
   [#adr("0037", body: "0037")], [Web interface stack], [Proposed],
   [#adr("0038", body: "0038")], [Draft protocol], [Proposed],
   [#adr("0039", body: "0039")], [Hardware sizing measured in CI], [Proposed],
+  [#adr("0040", body: "0040")], [Precheck and check], [Proposed],
 )
 
 Relations declared in the status of each ADR: a solid arrow refines, a thick arrow supersedes, a dotted arrow applies, extends or feeds the ADR it points to. ADRs without a declared relation are not shown.
@@ -89,6 +90,7 @@ Relations declared in the status of each ADR: a solid arrow refines, a thick arr
     A0037[0037 Web stack]
     A0038[0038 Draft protocol]
     A0039[0039 Measured sizing]
+    A0040[0040 Precheck and check]
 
     A0006 ==> A0003
     A0010 --> A0001
@@ -147,6 +149,12 @@ Relations declared in the status of each ADR: a solid arrow refines, a thick arr
     A0039 -.->|feeds| A0021
     A0039 -.->|validates| A0001
     A0039 -.->|validates| A0010
+    A0040 --> A0008
+    A0040 --> A0022
+    A0040 --> A0030
+    A0040 --> A0033
+    A0040 -.->|extends| A0038
+    A0040 -.->|applies| A0014
   ",
   document-context: true,
   width: 100%,
@@ -191,3 +199,4 @@ Relations declared in the status of each ADR: a solid arrow refines, a thick arr
 #include "0037-web-stack.typ"
 #include "0038-draft-protocol.typ"
 #include "0039-measured-sizing.typ"
+#include "0040-precheck-and-check.typ"

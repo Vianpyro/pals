@@ -2,7 +2,7 @@
 
 == ADR-0033 — Independent test cases and partial credit <adr-0033>
 
-*Status:* proposed. Refines #adr("0008") and #adr("0013"); extends #adr("0015"). \
+*Status:* proposed. Refines #adr("0008") and #adr("0013"); extends #adr("0015"). Refined by #adr("0040"). \
 *See also:* #arch("purpose-of-the-document")[architecture], sections #arch("judge-engine")[Judge engine] and #arch("load-and-performance")[Load and performance]; #adr("0007"), #adr("0022").
 
 === Context
@@ -11,7 +11,7 @@ A program that passes every test but the first must not get zero. Today:
 
 - The standard I/O runner already judges every case, each in its own sandbox: a crash or a timeout marks that case and the next one runs. But each case pays a sandbox start, and a compiled language would pay one compilation per case, whereas #adr("0008") plans a single compilation per run.
 - A unit-test runner (#ext("junit")[JUnit], #ext("pytest")[pytest], a C framework) runs the whole suite in one process. A segmentation fault, a `System.exit`, an `os._exit` or a stack overflow in one test kills the process: the report is lost, and every test with it.
-- #adr("0008") stops hidden tests at the first failure. This is right for a test run, where the student only learns whether at least one hidden test fails, and wrong for grading.
+- #adr("0008") stops hidden tests at the first failure. This is right for a check (#adr("0040")), where the student only learns whether at least one hidden test fails, and wrong for grading.
 - How an item's points follow from its case verdicts is not decided: #adr("0015") only says that a code item keeps its full verdict.
 
 Running the cases in parallel was also suggested, to answer faster.
@@ -46,7 +46,8 @@ Running the cases in parallel was also suggested, to answer faster.
   columns: (3.2cm, 1fr),
   stroke: 0.5pt,
   [*Job*], [*Cases run*],
-  [Test run (#adr("0008"))], [Every visible case; hidden cases until the first failure, the rest marked `not-run`. What is shown is unchanged.],
+  [Precheck (#adr("0040"))], [Every visible case, no hidden case.],
+  [Check (#adr("0040"))], [Every visible case; hidden cases until the first failure, and none if a visible case fails. The rest is marked `not-run`.],
   [Grading of the final submission (#adr("0022")), re-judging], [Every case, whatever happens to the others.],
 )
 
@@ -63,5 +64,5 @@ Running the cases in parallel was also suggested, to answer faster.
 - Parallel cases inside a job stay possible later, for deferred jobs on idle judges, if the measurements of #adr("0013") show that it helps.
 
 #validation(id: "V-0033")[
-  A program that crashes on the first case and passes the others gets every point but the first case's weight, in standard I/O and in each unit-test runner. A unit test calling `exit` or overflowing its stack loses that test only. A group with one failing case scores zero while the other cases still score. A C exercise compiles once per job. A test run stops hidden cases at the first failure; grading runs them all. Under the exam load test, compare the 95#super[th] percentile of run latency with one sandbox per case and one sandbox per job.
+  A program that crashes on the first case and passes the others gets every point but the first case's weight, in standard I/O and in each unit-test runner. A unit test calling `exit` or overflowing its stack loses that test only. A group with one failing case scores zero while the other cases still score. A C exercise compiles once per job. A check stops hidden cases at the first failure; grading runs them all. Under the exam load test, compare the 95#super[th] percentile of run latency with one sandbox per case and one sandbox per job.
 ]

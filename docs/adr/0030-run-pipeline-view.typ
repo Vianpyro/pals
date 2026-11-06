@@ -2,12 +2,12 @@
 
 == ADR-0030 — Run progress shown as a pipeline <adr-0030>
 
-*Status:* proposed. Refines #adr("0001"); extends #adr("0008"); applies #adr("0014"). \
+*Status:* proposed. Refines #adr("0001"); extends #adr("0008"); applies #adr("0014"). Refined by #adr("0040"). \
 *See also:* #arch("purpose-of-the-document")[architecture], sections #arch("exam-mode")[Exam mode] and #arch("load-and-performance")[Load and performance]; #adr("0019"), #adr("0022").
 
 === Context
 
-Between clicking "test" and the verdict, a run goes through the browser, the queue, the compiler and the tests (#adr("0008")). The student currently sees nothing until the verdict arrives. Under exam load the wait is longest, and a student who sees no progress clicks again or calls the invigilator. A failing run also does not say at once _where_ it failed: compilation, a visible test, a hidden test or a time limit.
+Between clicking "precheck" or "check" (#adr("0040")) and the verdict, a run goes through the browser, the queue, the compiler and the tests (#adr("0008")). The student currently sees nothing until the verdict arrives. Under exam load the wait is longest, and a student who sees no progress clicks again or calls the invigilator. A failing run also does not say at once _where_ it failed: compilation, a visible test, a hidden test or a time limit.
 
 Students know the step-by-step view of #ext("github-actions")[GitHub Actions]: one line per step, each with a status and a duration, and a list of past runs. The platform already holds the data for such a view: the job's queue state (#adr("0001")), the single compilation and the test results of the runner's JSON report (#adr("0013")), and a server-sent event stream per student (#adr("0008")).
 
@@ -28,7 +28,7 @@ Students know the step-by-step view of #ext("github-actions")[GitHub Actions]: o
   [Browser tests], [Results of the visible tests as they come in, for languages run in the browser (#adr("0008")).],
   [Waiting], [Elapsed time. No position: the claim order depends on priority and usage (#adr("0022")), and a position that moves backwards misleads more than it helps.],
   [Compilation], [Compiler diagnostics. Omitted when the language pack has no compile command (#adr("0013")).],
-  [Tests], [Visible tests: expected and actual output per case. Hidden tests: passed, or at least one failed, as in #adr("0008"); never a count, a case name or a duration per case, whatever the mode.],
+  [Tests], [Visible tests: expected and actual output per case. Hidden tests, on a check only: passed, or at least one failed, as in #adr("0008"); never a count, a case name or a duration per case, whatever the mode.],
   [Verdict], [The run's verdict and total duration.],
 )
 

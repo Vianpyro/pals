@@ -2,7 +2,7 @@
 
 == ADR-0022 — Submission scheduling policy <adr-0022>
 
-*Status:* proposed. Refines #adr("0001") and gives #adr("0014") its queue priority. \
+*Status:* proposed. Refines #adr("0001") and gives #adr("0014") its queue priority. Refined by #adr("0040"). \
 *See also:* #arch("purpose-of-the-document")[architecture], section #arch("submission-queue")[Submission queue].
 
 === Context
@@ -12,7 +12,7 @@ The queue must support exam priority and a fair distribution of resources (#arch
 - During an exam, an exam job must not wait behind practice jobs. The reserved judges (#adr("0021")) guarantee capacity, not order.
 - With strict priority, a low-priority activity (practice, bonus, the measurement queue of #adr("0007")) can wait forever while higher-priority jobs keep arriving.
 - One student who submits long runs again and again can hold every judge, and others wait behind them.
-- When an exam or a graded lab closes, the platform itself queues a burst: grading of every final submission (#adr("0008")), then performance measurement of the last submission of each student for each exercise (#adr("0007")). Nobody waits for it on screen, but the instructor needs it to release grades, and it is a requirement of the exercise, not a student's behavior.
+- When an exam or a graded lab closes, the platform itself queues a burst: grading of every final submission (#adr("0008")), then performance measurement of the final submission of each student for each exercise (#adr("0007")). Nobody waits for it on screen, but the instructor needs it to release grades, and it is a requirement of the exercise, not a student's behavior.
 
 A slow program is not misbehavior: a legitimate algorithm may take 20 s. The policy must react to the load a person keeps imposing, not to the duration of one run. New activity modes (lab, quiz, contest) will be added under #adr("0014"), and adding one must not require retuning the others.
 
@@ -61,7 +61,7 @@ Judges keep claiming with `SELECT … FOR UPDATE SKIP LOCKED` (#adr("0001")). Th
 )
 
 - *Protected modes*: a mode is `protected` or not; exam is protected. A protected job is always claimed before any other, whatever its score. This is a flag, not a number, so no aging or penalty setting can move a non-exam job ahead of an exam.
-- *Live and deferred jobs*: a _live_ job has someone waiting for its answer (a test run, a practice or assignment submission) and takes the base of its activity mode. A _deferred_ job is queued by the platform: grading of final submissions when a session closes (#adr("0008")), performance measurement (#adr("0007")), and re-judging requested by an instructor (#adr("0012")). A deferred job is never protected, so grading an exam that has ended never goes ahead of the test runs of an exam in progress, and it is never charged to anyone's usage.
+- *Live and deferred jobs*: a _live_ job has someone waiting for its answer (a precheck or a check, #adr("0040")) and takes the base of its activity mode. A _deferred_ job is queued by the platform: grading of final submissions when a session closes (#adr("0008")), performance measurement (#adr("0007")), and re-judging requested by an instructor (#adr("0012")). A deferred job is never protected, so grading an exam that has ended never goes ahead of the test runs of an exam in progress, and it is never charged to anyone's usage.
 - *Base priority*: an integer, not code. For a live job it is part of the activity mode policy (#adr("0014")); for a deferred job it is set per kind. Values are spaced so that a new mode or kind takes a free value between two existing ones, without renumbering or retuning anything:
 
   #table(
@@ -93,7 +93,7 @@ An exam or a graded lab closes at its last student's window, accommodations incl
   "
   flowchart LR
     E[Session closes] --> G[Grading of every final submission<br/>deferred, base 600]
-    G --> M[Performance measurement of the last<br/>submission per student and exercise<br/>deferred, base 0]
+    G --> M[Performance measurement of the final<br/>submission per student and exercise<br/>deferred, base 0]
     M --> R[Grades available]
     R --> AGS[Moodle, through AGS]
   ",

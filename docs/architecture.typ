@@ -612,7 +612,7 @@ Under gVisor, the process limit also counts the threads of the sandbox's own ker
 Execution time is a safeguard, not a measurement. It varies with the VM's load and with the language, and therefore cannot be used to compare algorithms fairly.
 
 #decision(id: "ADR-0007")[
-  Performance is measured in executed instructions, deterministically, and compared with a reference solution in the same language, complexity being the main criterion. The limit of the measurement pass is an instruction budget. Measurement is done after the exam, on each student's last submission for each exercise.
+  Performance is measured in executed instructions, deterministically, and compared with a reference solution in the same language, complexity being the main criterion. The limit of the measurement pass is an instruction budget. Measurement is done after the exam, on each student's final submission for each exercise.
 ]
 
 = Load and performance <arch-load-and-performance>
@@ -834,6 +834,10 @@ Three conceptual modes are currently envisioned:
   document-context: true,
   width: 100%,
 )
+
+#decision(id: "ADR-0040")[
+  During an activity, a student runs a precheck (visible tests) or, if the activity allows it, a check (hidden tests too). The grade comes from the final submission, the last saved draft at the close, and appears only if the instructor allows it.
+]
 
 == Safe Exam Browser <arch-safe-exam-browser>
 
@@ -1980,8 +1984,8 @@ Several important questions are deliberately left open.
 13. How can Moodle and Safe Exam Browser be integrated cleanly? For the MVP, the platform is allowed in the instructor's `.seb` file; SEB verification (#adr("0009")) is deferred, and the handoff from Moodle to the platform through LTI remains to be specified.
 14. Which part of the architecture should be common to the different courses? A first answer is given by #adr("0012") and #adr("0014"); LOG121 will test it.
 15. How is assessment data distributed to the judges when they are spread over several machines: shared mount, copy at publication time or versioned artifact? Whatever the answer, a sandbox only receives the judged exercise's `assessment/` subtree (#adr("0023")).
-16. Is performance graded by a complexity verdict (one reference per exercise) or by a full ranking (one reference per language)? To be settled with the instructor.
-17. Is code that does not pass all tests measured? If the last submission fails while an earlier one passed, which one is measured? One student in the #arch("appendix-student-survey")[survey] asks that the submission passing the most tests be kept, or that the student choose.
+16. How is performance graded? A first answer is given by the levels of #adr("0007"), with one reference per exercise; to confirm with the instructor.
+17. Is code that does not pass all tests measured? If the final submission fails while an earlier check passed, which one is measured? One student in the #arch("appendix-student-survey")[survey] asks that the submission passing the most tests be kept, or that the student choose.
 18. Which languages does each course support, and which of them can run in the browser? A first inventory is given in the #arch("appendix-course-inventory")[appendix] and the tiers in #adr("0013"); it remains to be confirmed with each course coordinator.
 19. Should existing Moodle question banks be imported (Moodle XML, GIFT), and for which families? A first answer is given in #adr("0029"), which also imports Word statements. CTester's importer is a starting point: it converts Moodle XML and reports what it cannot express instead of dropping it. The grader families (#adr("0015")) cover more types than CTester, such as calculated, essay and image drag and drop.
 20. How do TAs grade manual items (essay, UML diagram, file upload) during a heavy exam period: per item across students, or per student?
