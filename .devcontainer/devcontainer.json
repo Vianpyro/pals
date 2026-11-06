@@ -22,7 +22,7 @@
   // sqlx-cli at Cargo.lock's sqlx version; safe.directory since the mount is root's (Zed doesn't add it);
   // GitHub credentials from gh in any editor, '' drops the helpers set before;
   // node_modules is a volume Docker creates as root; Playwright's browsers match the lockfile's version
-  "postCreateCommand": "cargo fetch --locked && cargo install sqlx-cli --locked --version \"$(cargo pkgid sqlx | cut -d@ -f2)\" --no-default-features --features postgres && git config --global --add safe.directory /workspaces/LOG791 && git config core.hooksPath .githooks && git config --global --replace-all credential.https://github.com.helper '' && git config --global --add credential.https://github.com.helper '!gh auth git-credential' && sudo chown vscode: node_modules && npm ci && npx playwright install --with-deps chromium webkit",
+  "postCreateCommand": "cargo fetch --locked && cargo install sqlx-cli --locked --version \"$(cargo pkgid sqlx | cut -d@ -f2)\" --no-default-features --features postgres && git config --global --add safe.directory /workspaces/LOG791 && git config core.hooksPath .githooks && git config --global --replace-all credential.https://github.com.helper '' && git config --global --add credential.https://github.com.helper '!gh auth git-credential' && sudo chown -R vscode: node_modules && npm ci && npx playwright install --with-deps chromium webkit",
   "postStartCommand": "bash .devcontainer/check.sh",
   "customizations": {
     // The VS Code tools, plus languages VS Code has built in and Zed lacks
