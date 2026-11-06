@@ -5,7 +5,6 @@ use sqlx::{
     types::{Uuid, time::OffsetDateTime},
 };
 
-use crate::Verdict;
 use crate::{JobKind, Verdict};
 
 #[derive(Debug)]
@@ -88,7 +87,7 @@ mod tests {
         sqlx::query(
             r#"
                 INSERT INTO jobs (contract, kind, course, exercise, language_pack, source, author)
-                VALUES (1, $1, 'log200', 'sum' 'python', 'print(0)', 'etudiant1')
+                VALUES (1, $1, 'log200', 'sum', 'python', 'print(0)', 'etudiant1')
             "#,
         )
         .bind(kind)
