@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                id AS \"id!\",\n                contract AS \"contract!\",\n                course AS \"course!: String\",\n                exercise AS \"exercise!: String\",\n                language_pack AS \"language_pack!: String\",\n                source AS \"source!\",\n                enqueued_at AS \"enqueued_at!\"\n            FROM claim_job()\n        ",
+  "query": "\n            SELECT\n                id AS \"id!\",\n                contract AS \"contract!\",\n                kind AS \"kind!: JobKind\",\n                course AS \"course!: String\",\n                exercise AS \"exercise!: String\",\n                language_pack AS \"language_pack!: String\",\n                source AS \"source!\",\n                enqueued_at AS \"enqueued_at!\"\n            FROM claim_job()\n        ",
   "describe": {
     "columns": [
       {
@@ -17,30 +17,47 @@
       },
       {
         "ordinal": 2,
+        "name": "kind!: JobKind",
+        "type_info": {
+          "Custom": {
+            "name": "job_kind",
+            "kind": {
+              "Enum": [
+                "precheck",
+                "check",
+                "final"
+              ]
+            }
+          }
+        },
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 3,
         "name": "course!: String",
         "type_info": "Text",
         "origin": "Expression"
       },
       {
-        "ordinal": 3,
+        "ordinal": 4,
         "name": "exercise!: String",
         "type_info": "Text",
         "origin": "Expression"
       },
       {
-        "ordinal": 4,
+        "ordinal": 5,
         "name": "language_pack!: String",
         "type_info": "Text",
         "origin": "Expression"
       },
       {
-        "ordinal": 5,
+        "ordinal": 6,
         "name": "source!",
         "type_info": "Text",
         "origin": "Expression"
       },
       {
-        "ordinal": 6,
+        "ordinal": 7,
         "name": "enqueued_at!",
         "type_info": "Timestamptz",
         "origin": "Expression"
@@ -56,8 +73,9 @@
       null,
       null,
       null,
+      null,
       null
     ]
   },
-  "hash": "74c106931d424bd5572ea8043db6e8186302f28f7625a1b3ddba283b130d82b0"
+  "hash": "285fce7565d735822e0c78f1f38eb6a12a6911f9af76c2e442f087cc9d18d6ac"
 }
