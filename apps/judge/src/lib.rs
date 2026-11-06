@@ -3,6 +3,7 @@
 mod cases;
 mod errors;
 mod judging;
+mod kind;
 mod pack;
 mod queue;
 mod sandbox;
@@ -13,6 +14,7 @@ mod verdict;
 
 pub use cases::{Case, Visibility, read_cases};
 pub use judging::judge_cases;
+pub use kind::JobKind;
 pub use pack::{Pack, read_packs};
 pub use queue::{Job, claim, fail, finish};
 pub use sandbox::{Outcome, run_in_sandbox};

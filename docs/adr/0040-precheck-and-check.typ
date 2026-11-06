@@ -25,7 +25,7 @@ Students already know two separate actions from #ext("coderunner")[CodeRunner] i
   columns: (2.6cm, 1fr, 1fr),
   stroke: 0.5pt,
   [*Action*], [*Cases run*], [*Shown to the student*],
-  [Precheck], [Every visible case: in the browser for a language retained by #adr("0008"), otherwise as a `precheck` job.], [Expected and actual output per case.],
+  [Precheck], [Every visible case: in the browser for a language retained by #adr("0008"), otherwise as a `precheck` job.], [Expected and actual output per case, as soon as each case ends (#adr("0030")).],
   [Check], [Every visible case; hidden cases until the first failure, and none if a visible case fails. The cases left are marked `not-run` (#adr("0033")). A `check` job.], [Visible cases as above; for hidden cases, only whether at least one fails.],
   [Final submission], [Every case. A deferred `final` job (#adr("0022")).], [Nothing on screen; the grade, according to the activity.],
 )

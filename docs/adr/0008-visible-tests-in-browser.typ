@@ -85,8 +85,8 @@ Flow of a test run:
     opt code sent
       A->>J: job through the queue
       J->>J: one compilation, visible tests, hidden tests on a check
-      J-->>A: NOTIFY
-      A-->>B: result over SSE, browser/judge discrepancy reported
+      J-->>A: NOTIFY per visible case as it ends, then with the verdict
+      A-->>B: results over SSE, browser/judge discrepancy reported
     end
   ",
   document-context: true,
@@ -95,7 +95,7 @@ Flow of a test run:
 
 On a check, the code is sent to the server *only if all visible tests pass*, and a precheck that passes only saves the draft. Most attempts fail on a visible test and therefore never reach the server. On a check, the server runs the visible tests as well: the main cost is sandbox startup and compilation, so they add little, and they make it possible to detect a discrepancy between the browser and the judge, which is reported to the student.
 
-Server results arrive through *#ext("sse")[Server-Sent Events]*, in a single stream per student. The judge notifies the API through #ext("postgresql")[PostgreSQL]'s #ext("listen-notify")[`LISTEN`/`NOTIFY`]. No new component is added.
+Server results arrive through *#ext("sse")[Server-Sent Events]*, in a single stream per student, each visible case as soon as it ends (#adr("0030")). The judge notifies the API through #ext("postgresql")[PostgreSQL]'s #ext("listen-notify")[`LISTEN`/`NOTIFY`]. No new component is added.
 
 On the server side, test runs share the same sandbox and a single compilation. Students are served in turn, with at most one run in progress per student. A new request replaces the previous one if it has not started yet. The hidden tests of a check stop at the first failure, and do not run if a visible test fails.
 

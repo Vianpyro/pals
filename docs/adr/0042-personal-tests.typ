@@ -43,7 +43,7 @@ Such a test needs a place to live. The draft of #adr("0038") looks like the obvi
 
 *A personal test has no effect on any other result.* Its verdicts are stored apart from those of the exercise's cases. A failure changes neither the run's overall result, nor the draft saved by a passing precheck, nor access to the check.
 
-*The judge runs them in the same sandbox*, after the exercise's cases and with the same compilation and limits (#adr("0033")). Each gets its verdict like any case.
+*The judge runs them in the same sandbox*, after the exercise's cases and with the same compilation and limits (#adr("0033")). Each gets its verdict like any case, and is reported as soon as it ends (#adr("0030")).
 
 *The stored output is bounded and cleaned*, for every case that shows one. The verdict is computed on the full output first. The output is then cut to 64 KiB, and the interface says so. A NUL byte or invalid UTF-8 is replaced by U+FFFD, since `jsonb` refuses them and a database error stops the judge: otherwise, a program printing `\0` could stop it.
 

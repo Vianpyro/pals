@@ -60,6 +60,7 @@ Running the cases in parallel was also suggested, to answer faster.
 - The grade reflects the share of cases a program passes; one crash costs one case.
 - A program that times out on every case costs the sum of the case limits. This is bounded by the exercise's limits, and the usage penalty of #adr("0022") charges it to its author.
 - The per-case sandbox of the current standard I/O runner becomes one process per case inside the job's sandbox; the runner contract of #adr("0013") does not change.
+- A visible case of a test run is reported as soon as it ends (#adr("0030")); one compilation per job is what lets the first one arrive quickly.
 - Each case's verdict is kept, so the weights can be changed and the item re-graded without running anything again.
 - Parallel cases inside a job stay possible later, for deferred jobs on idle judges, if the measurements of #adr("0013") show that it helps.
 

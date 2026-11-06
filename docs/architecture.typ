@@ -363,7 +363,10 @@ The path of one submission, from the browser to the verdict:
     J->>D: claim: SELECT … FOR UPDATE SKIP LOCKED
     J->>J: resolve the exercise in the active release, recheck opening
     J->>S: compile and run with limits
-    S-->>J: JSON report
+    S-->>J: result of each case
+    J->>D: write each visible case as it ends, NOTIFY
+    D-->>A: LISTEN
+    A-->>B: each visible case over SSE
     J->>D: write the verdict, NOTIFY
     D-->>A: LISTEN
     A-->>B: verdict over SSE
@@ -670,7 +673,7 @@ The actual load therefore depends heavily on the students' behavior over time.
     [6000], [≈ 2400], [≈ 33], [≈ 67],
   )
 
-  PostgreSQL stays within its range even at the ceiling; the number of judge VMs is what varies. The load tests measure the two rates assumed here.
+  Reporting each visible case as it ends (#adr("0030")) adds at most about 0.06 writes per second per student: ten visible cases, every 3 minutes. PostgreSQL stays within its range even at the ceiling; the number of judge VMs is what varies. The load tests measure the two rates assumed here.
 ]
 
 A first measure already refutes the duration for Java, and judges do not add up: a job takes longer when more of them share a machine (#adr("0039")). The table above is therefore a lower bound, kept to show how the load is reasoned about.

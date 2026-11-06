@@ -5,6 +5,7 @@ CREATE FUNCTION claim_job()
 RETURNS TABLE (
     id uuid,
     contract integer,
+    kind job_kind,
     course identifier,
     exercise identifier,
     language_pack identifier,
@@ -25,7 +26,7 @@ BEGIN ATOMIC
         WHERE j.state = 'waiting'
         ORDER BY j.enqueued_at, j.id LIMIT 1 FOR UPDATE SKIP LOCKED
     )
-    RETURNING jobs.id, jobs.contract, jobs.course, jobs.exercise, jobs.language_pack, jobs.source, jobs.enqueued_at;
+    RETURNING jobs.id, jobs.contract, jobs.kind, jobs.course, jobs.exercise, jobs.language_pack, jobs.source, jobs.enqueued_at;
 END;
 
 REVOKE EXECUTE ON FUNCTION claim_job() FROM PUBLIC;

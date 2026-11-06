@@ -31,7 +31,7 @@ These figures describe that machine, and only show why judges cannot be sized fr
 - The workflow runs weekly and on demand, not on pull requests: it is long, and its times are noisy.
 - A runner cannot reach 1250 students, nor Java's ceiling: these stay extrapolated.
 - A judge machine is assumed comparable to the machine measured, whose cores the report states. The ÉTS VMs are reached only through the VPN, so CI cannot measure them: replaying `run.sh` on one is manual.
-- Sign-in, nginx and the loss of a machine are not part of the load yet.
+- Sign-in, nginx and the loss of a machine are not part of the load yet, nor are the per-case writes and events of #adr("0030").
 
 #validation(id: "V-0039")[
   Two runs of the workflow on one commit give close memory figures. A deliberate allocation fails the budget. Replayed on an ÉTS VM, the ceilings and the model's waits are compared with those of the runner, and the assumption of comparable machines is corrected accordingly.

@@ -8,11 +8,18 @@ CREATE TYPE job_state as ENUM (
     'failed'
 );
 
+CREATE TYPE job_kind AS ENUM (
+    'precheck',
+    'check',
+    'final'
+);
+
 CREATE DOMAIN identifier AS text CHECK (value ~ '^[a-z0-9-]+$');
 
 CREATE TABLE jobs (
     id uuid PRIMARY KEY DEFAULT uuidv7(),
     contract integer NOT NULL CHECK (contract > 0),
+    kind job_kind NOT NULL DEFAULT 'check',
     course identifier NOT NULL,
     exercise identifier NOT NULL,
     language_pack identifier NOT NULL, -- (ADR-0013)

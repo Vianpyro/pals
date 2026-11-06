@@ -99,7 +99,17 @@ fn prepare<'p>(
         .join("exercises")
         .join(exercise.as_str())
         .join("assessment");
-    Ok((pack, read_cases(&assessment)?))
+
+    let mut cases = read_cases(&assessment)?;
+    cases.retain(|case| job.kind.runs(case.visibility));
+    (!cases.is_empty()).ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("no case for a {:?} job", job.kind),
+        )
+    })?;
+
+    Ok((pack, cases))
 }
 
 fn id(value: &str) -> io::Result<Id> {
@@ -117,6 +127,7 @@ async fn judge(job: &Job, pack: &Pack, cases: &[Case]) -> io::Result<Vec<Verdict
 mod tests {
     use super::*;
     use content::Window;
+    use judge::{JobKind, Visibility};
     use sqlx::types::{Uuid, time::OffsetDateTime};
     use std::{assert_matches, fs, path::PathBuf, time::UNIX_EPOCH};
 
@@ -156,6 +167,7 @@ mod tests {
         Job {
             id: Uuid::default(),
             contract: 1,
+            kind: JobKind::Check,
             course: "log200".to_string(),
             exercise: exercise.into(),
             language_pack: language_pack.into(),
@@ -188,6 +200,31 @@ mod tests {
         )
         .unwrap();
         assert_eq!(cases.len(), 1);
+    }
+
+    #[test]
+    fn precheck_keeps_only_the_visible_cases() {
+        let (content, courses) = log200("precheck-visible");
+        let visible = content.join("log200/exercises/sum/assessment/visible");
+        fs::create_dir_all(&visible).unwrap();
+        fs::write(visible.join("1.in"), "2 2").unwrap();
+        fs::write(visible.join("1.out"), "4").unwrap();
+        let mut job = job("python", "sum", "");
+        job.kind = JobKind::Precheck;
+        let packs = packs();
+        let (_, cases) = prepare(&packs, &content, &courses, &job, &closing_after(60)).unwrap();
+        let kinds: Vec<Visibility> = cases.iter().map(|case| case.visibility).collect();
+        assert_eq!(kinds, [Visibility::Visible]);
+    }
+
+    #[test]
+    fn precheck_without_a_visible_case_is_invalid() {
+        let (content, courses) = log200("precheck-hidden-only");
+        let mut job = job("python", "sum", "");
+        job.kind = JobKind::Precheck;
+        let packs = packs();
+        let result = prepare(&packs, &content, &courses, &job, &closing_after(60));
+        assert_matches!(result, Err(error) if error.kind() == io::ErrorKind::InvalidData);
     }
 
     #[test]

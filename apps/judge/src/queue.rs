@@ -6,11 +6,13 @@ use sqlx::{
 };
 
 use crate::Verdict;
+use crate::{JobKind, Verdict};
 
 #[derive(Debug)]
 pub struct Job {
     pub id: Uuid,
     pub contract: i32,
+    pub kind: JobKind,
     pub course: String,
     pub exercise: String,
     pub language_pack: String,
@@ -26,6 +28,7 @@ pub async fn claim(connection: &mut PgConnection) -> sqlx::Result<Option<Job>> {
             SELECT
                 id AS "id!",
                 contract AS "contract!",
+                kind AS "kind!: JobKind",
                 course AS "course!: String",
                 exercise AS "exercise!: String",
                 language_pack AS "language_pack!: String",
@@ -81,6 +84,19 @@ mod tests {
         .unwrap()
     }
 
+    async fn enqueue_kind(pool: &PgPool, kind: JobKind) {
+        sqlx::query(
+            r#"
+                INSERT INTO jobs (contract, kind, course, exercise, language_pack, source, author)
+                VALUES (1, $1, 'log200', 'sum' 'python', 'print(0)', 'etudiant1')
+            "#,
+        )
+        .bind(kind)
+        .execute(pool)
+        .await
+        .unwrap();
+    }
+
     // Tests connect as a superuser: each check runs with the role's privileges instead
     async fn begin_as(pool: &PgPool, role: &'static str) -> Transaction<'static, Postgres> {
         let mut transaction = pool.begin().await.unwrap();
@@ -93,6 +109,13 @@ mod tests {
         let job = claim(&mut transaction).await.unwrap();
         transaction.commit().await.unwrap();
         job.map(|job| job.id)
+    }
+
+    async fn claimed_kind(pool: &PgPool) -> JobKind {
+        let mut transaction = begin_as(pool, AS_JUDGE).await;
+        let job = claim(&mut transaction).await.unwrap().unwrap();
+        transaction.commit().await.unwrap();
+        job.kind
     }
 
     async fn finish_as_judge(pool: &PgPool, job: Uuid, verdicts: &[Verdict]) -> bool {
@@ -130,6 +153,22 @@ mod tests {
         assert_eq!(claim_as_judge(&pool).await, Some(first));
         assert_eq!(claim_as_judge(&pool).await, Some(second));
         assert_eq!(claim_as_judge(&pool).await, None);
+    }
+
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL"]
+    async fn claimed_job_holds_its_kind(pool: PgPool) {
+        for kind in [JobKind::Precheck, JobKind::Check, JobKind::Final] {
+            enqueue_kind(&pool, kind).await;
+            assert_eq!(claimed_kind(&pool).await, kind);
+        }
+    }
+
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL"]
+    async fn job_enqueued_without_a_kind_is_a_check(pool: PgPool) {
+        enqueue(&pool).await;
+        assert_eq!(claimed_kind(&pool).await, JobKind::Check);
     }
 
     #[sqlx::test(migrations = "../../db/migrations")]
