@@ -2,7 +2,7 @@
 
 == ADR-0035 — Completion computed in the browser <adr-0035>
 
-*Status:* proposed. Extends #adr("0013") and #adr("0034"). \
+*Status:* proposed. Extends #adr("0013") and #adr("0034"). Extended by #adr("0041"). \
 *See also:* #arch("purpose-of-the-document")[architecture], sections #arch("safe-exam-browser")[Safe Exam Browser] and #arch("target-load")[Target load]; #adr("0008"), #adr("0031").
 
 === Context

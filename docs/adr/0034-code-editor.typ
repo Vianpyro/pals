@@ -2,7 +2,7 @@
 
 == ADR-0034 — Code editor <adr-0034>
 
-*Status:* proposed. Extends #adr("0013"). \
+*Status:* proposed. Extends #adr("0013"). Extended by #adr("0041"). \
 *See also:* #arch("purpose-of-the-document")[architecture], sections #arch("safe-exam-browser")[Safe Exam Browser] and #arch("courses-and-roles")[Courses and roles]; #adr("0008"), #adr("0011"), #adr("0035").
 
 === Context

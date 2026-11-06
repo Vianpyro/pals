@@ -50,6 +50,7 @@
   [#adr("0038", body: "0038")], [Draft protocol], [Proposed],
   [#adr("0039", body: "0039")], [Hardware sizing measured in CI], [Proposed],
   [#adr("0040", body: "0040")], [Precheck and check], [Proposed],
+  [#adr("0041", body: "0041")], [Exercises with several source files], [Proposed],
 )
 
 Relations declared in the status of each ADR: a solid arrow refines, a thick arrow supersedes, a dotted arrow applies, extends or feeds the ADR it points to. ADRs without a declared relation are not shown.
@@ -91,6 +92,7 @@ Relations declared in the status of each ADR: a solid arrow refines, a thick arr
     A0038[0038 Draft protocol]
     A0039[0039 Measured sizing]
     A0040[0040 Precheck and check]
+    A0041[0041 Several source files]
 
     A0006 ==> A0003
     A0010 --> A0001
@@ -155,6 +157,12 @@ Relations declared in the status of each ADR: a solid arrow refines, a thick arr
     A0040 --> A0033
     A0040 -.->|extends| A0038
     A0040 -.->|applies| A0014
+    A0041 -.->|extends| A0008
+    A0041 -.->|extends| A0013
+    A0041 -.->|extends| A0034
+    A0041 -.->|extends| A0035
+    A0041 -.->|extends| A0038
+    A0041 -.->|applies| A0023
   ",
   document-context: true,
   width: 100%,
@@ -200,3 +208,4 @@ Relations declared in the status of each ADR: a solid arrow refines, a thick arr
 #include "0038-draft-protocol.typ"
 #include "0039-measured-sizing.typ"
 #include "0040-precheck-and-check.typ"
+#include "0041-multiple-source-files.typ"

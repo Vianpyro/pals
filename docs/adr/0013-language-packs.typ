@@ -2,7 +2,7 @@
 
 == ADR-0013 — Language packs and test runners <adr-0013>
 
-*Status:* proposed. Applies #adr("0014"). \
+*Status:* proposed. Applies #adr("0014"). Extended by #adr("0041"). \
 *See also:* #arch("purpose-of-the-document")[architecture], sections #arch("multi-language-abstraction")[Multi-language abstraction] and #arch("language-catalog")[Language catalog].
 
 === Context

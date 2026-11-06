@@ -2,7 +2,7 @@
 
 == ADR-0008 — Running visible tests in the browser <adr-0008>
 
-*Status:* proposed; the gain is to be quantified by load testing. Refined by #adr("0040"). \
+*Status:* proposed; the gain is to be quantified by load testing. Refined by #adr("0040"). Extended by #adr("0041"). \
 *See also:* #arch("purpose-of-the-document")[architecture], sections #arch("webassembly")[WebAssembly], #arch("load-and-performance")[Load and performance] and #arch("exam-mode")[Exam mode]; #adr("0001"), #adr("0007").
 
 === Context

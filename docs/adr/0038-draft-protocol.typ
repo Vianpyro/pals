@@ -2,7 +2,7 @@
 
 == ADR-0038 — Draft protocol <adr-0038>
 
-*Status:* proposed. Extended by #adr("0040"). \
+*Status:* proposed. Extended by #adr("0040") and #adr("0041"). \
 *See also:* #arch("mixed-assessments")[architecture], sections #arch("mixed-assessments")[Mixed assessments] and #arch("safe-exam-browser")[Safe Exam Browser]; #adr("0008"), #adr("0015"), #adr("0020"), #adr("0034"), #adr("0037").
 
 === Context

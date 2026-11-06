@@ -1046,7 +1046,7 @@ Content is edited in a repository separate from the platform's code. Each exerci
 exercises/<id>/
 ├── exercise.json      metadata, skills (no dates: ADR-0020)
 ├── statement.md       or statement.typ, never both
-├── public/            templates handed to the student
+├── public/<pack>/     templates and read-only files for the student (ADR-0041)
 └── assessment/        tests, cases, judge configuration (private)
     ├── visible/       cases shown with expected and actual output (ADR-0030)
     └── hidden/        cases never detailed, only whether one fails (ADR-0008)
@@ -1063,7 +1063,7 @@ exams/<id>.json        mode, sections, slots (fixed item or pool draw), points
 
 Invalid content must never replace the active publication.
 
-Validation checks in particular the metadata schema, the uniqueness of identifiers, the consistency of collections and the absence of ambiguity, for example two statement formats for the same exercise. It fails *before* the first write. An exercise still carrying the report of a lossy import is refused (#adr("0029")).
+Validation checks in particular the metadata schema, the uniqueness of identifiers, the consistency of collections and the absence of ambiguity, for example two statement formats for the same exercise. It fails *before* the first write. An exercise still carrying the report of a lossy import is refused (#adr("0029")), and so is one whose declared source files have an invalid path, a read-only file without content or a list without its pack's entry point (#adr("0041")).
 
 #decision[
   A validation error stops publishing, naming the faulty exercise and field. The previous release keeps being served.
@@ -1995,6 +1995,7 @@ Several important questions are deliberately left open.
 24. Which APIs and languages does #course("LOG645") use (OpenMP, MPI, threads; C or C++), how many cores does an exercise need, and is the speedup graded or only the result? #adr("0036") assumes C and C++ with OpenMP and MPI on one judge.
 25. What does "local" completion mean for the instructor: computed in the student's browser, as #adr("0035") assumes, or hosted at ÉTS rather than by a vendor? Is completion allowed in exams? In the #arch("appendix-student-survey")[student survey], 36 of 48 students want it in exams and 3 prefer without; the default stays the instructor's call.
 26. For the assistant's hints (#adr("0031")): what default cost list, per item or per activity, and may an instructor write some levels by hand instead of the model, which would remove the risk of a leak for those levels? In the #arch("appendix-student-survey")[student survey], the median price students would pay for a first hint is 0.5 point out of 10, and 16 of 49 would pay nothing, far below the example of 1, 3 and 10 points. They ask that rephrasing the statement and explaining a compiler error be free, and they worry about paying for a wrong answer, whereas a charge is final. Exams come last among the activities where they want the assistant (15 of 50).
+27. Does #course("LOG121") want exercises with several source files, and do its students choose how they split their program, or does the exercise impose it? #adr("0041") allows both, per exercise; it remains to be confirmed with the coordinator.
 
 = Validation methodology <arch-validation-methodology>
 
