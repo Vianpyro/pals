@@ -42,6 +42,7 @@ jobs:
             && (bash .devcontainer/demo.sh > /tmp/demo.log 2>&1 &)
             && { timeout 300 sh -c 'until curl -sf http://localhost/api/health; do sleep 2; done' || { cat /tmp/demo.log; exit 1; }; }
             && CI=1 npm run e2e
+            && CI=1 npm run e2e:demo
 
   # The runner's rustup installs the toolchain of rust-toolchain.toml on first use.
   # No PostgreSQL here: query! macros read .sqlx/, written by cargo sqlx prepare.

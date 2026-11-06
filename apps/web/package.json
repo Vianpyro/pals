@@ -5,8 +5,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:demo": "vite build --config vite.demo.config.js",
     "check": "svelte-check --fail-on-warnings",
-    "test": "node --test \"scripts/*.test.js\" \"locales/*.test.js\" \"src/lib/*.test.ts\"",
+    "test": "node --test \"scripts/*.test.js\" \"locales/*.test.js\" \"src/lib/*.test.ts\" \"demo/*.test.ts\"",
     "budget": "node scripts/size-budget.js dist index.html=50"
   },
   "dependencies": {

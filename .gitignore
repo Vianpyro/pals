@@ -2,4 +2,5 @@ _site/
 target/
 node_modules/
 apps/web/dist/
+apps/web/dist-demo/
 test-results/
