@@ -1,0 +1,11 @@
+image = "eclipse-temurin:25-jdk-alpine"
+source = "Main.java"
+run = [
+    "java",
+    "-XX:-UsePerfData",
+    "-Xmx200m",
+    "-Xss512k",
+    "-XX:TieredStopAtLevel=1",
+    "-XX:+UseSerialGC",
+    "Main.java",
+]

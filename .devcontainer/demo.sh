@@ -6,16 +6,17 @@ cd "$(dirname "$0")/.."
 
 demo=/tmp/demo
 bin=${CARGO_TARGET_DIR:-target}/debug
-# The judge's Python pack image (packs/languages/python/pack.toml)
-image=python:3.15-alpine
 
 # The inner dockerd starts alongside this script
 for _ in $(seq 30); do
   docker info >/dev/null 2>&1 && break
   sleep 1
 done
-# Otherwise the first job pulls it within the judge's time limit
-docker image inspect "$image" >/dev/null 2>&1 || docker pull -q "$image" >/dev/null
+# Otherwise the first job pulls its image within the judge's time limit
+for pack in packs/languages/*/pack.toml; do
+  image=$(sed -n 's/^image = "\(.*\)"$/\1/p' "$pack")
+  docker image inspect "$image" >/dev/null 2>&1 || docker pull -q "$image" >/dev/null
+done
 
 cargo build -p api -p judge -p publisher
 # The page nginx serves at localhost:80
