@@ -11,14 +11,27 @@ use content::accessible_exercise;
 use contracts::Id;
 use sqlx::PgPool;
 
-use super::schedule;
+use super::{roles, schedule};
+
+pub(super) async fn member(pool: &PgPool, course: &Id, account: &str) -> Result<(), StatusCode> {
+    let has_role = roles::has_role(pool, course, account)
+        .await
+        .map_err(|error| {
+            eprintln!("api: roles: {error}");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+    has_role.ok_or(StatusCode::FORBIDDEN)
+}
 
 pub(super) async fn open_exercise(
     pool: &PgPool,
     courses: &Path,
+    account: &str,
     course: &Id,
     exercise: &Id,
 ) -> Result<PathBuf, StatusCode> {
+    member(pool, course, account).await?;
+
     let schedule = schedule::read(pool, course, exercise)
         .await
         .map_err(|error| {

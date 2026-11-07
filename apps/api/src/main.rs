@@ -31,6 +31,7 @@ mod events;
 mod gate;
 mod kind;
 mod notify;
+mod roles;
 mod runs;
 mod schedule;
 mod session;
@@ -164,12 +165,12 @@ async fn sign_out(
 }
 
 async fn statement(
-    Account(_): Account,
+    Account(account): Account,
     State(pool): State<PgPool>,
     State(courses): State<Arc<path::Path>>,
     Path((course, exercise)): Path<(Id, Id)>,
 ) -> Result<String, StatusCode> {
-    let dir = gate::open_exercise(&pool, &courses, &course, &exercise).await?;
+    let dir = gate::open_exercise(&pool, &courses, &account, &course, &exercise).await?;
     fs::read_to_string(dir.join("statement.md")).map_err(gate::status_of)
 }
 
@@ -182,7 +183,14 @@ async fn submit(
     if submission.source.is_empty() || submission.source.len() > MAX_SOURCE {
         return Err(StatusCode::UNPROCESSABLE_ENTITY);
     }
-    gate::open_exercise(&pool, &courses, &submission.course, &submission.exercise).await?;
+    gate::open_exercise(
+        &pool,
+        &courses,
+        &author,
+        &submission.course,
+        &submission.exercise,
+    )
+    .await?;
 
     let id = enqueue_replacing(&pool, &author, &submission)
         .await
@@ -349,7 +357,21 @@ mod tests {
         signed_in_as(pool, "etudiant1").await
     }
 
+    async fn give_role(pool: &PgPool, course: &str, account: &str) {
+        sqlx::query("INSERT INTO course_roles VALUES ($1, $2, 'student') ON CONFLICT DO NOTHING")
+            .bind(course)
+            .bind(account)
+            .execute(pool)
+            .await
+            .unwrap();
+    }
+
     async fn signed_in_as(pool: &PgPool, account: &str) -> String {
+        give_role(pool, "log200", account).await;
+        signed_in_without_role(pool, account).await
+    }
+
+    async fn signed_in_without_role(pool: &PgPool, account: &str) -> String {
         let token = session::open(pool, account).await.unwrap();
         format!("{}={token}", session::COOKIE)
     }
@@ -519,7 +541,7 @@ mod tests {
     async fn listening(pool: &PgPool) {
         for _ in 0..100 {
             let listeners: i64 = sqlx::query_scalar(
-                "SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND query LIKE '%LISTEN \"cases\"%'",
+                r#"SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND query LIKE '%LISTEN "cases"%' AND pid <> pg_backend_pid()"#,
             )
             .fetch_one(pool)
             .await
@@ -1056,7 +1078,72 @@ mod tests {
 
     #[sqlx::test(migrations = "../../db/migrations")]
     #[ignore = "needs PostgreSQL"]
+    async fn statement_requires_role(pool: PgPool) {
+        let courses = open_sum(&pool, "role-statement").await;
+        let cookie = signed_in_without_role(&pool, "visiteur").await;
+        assert_eq!(
+            get_statement(&pool, courses, &cookie, "sum").await.0,
+            StatusCode::FORBIDDEN
+        );
+    }
+
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL"]
+    async fn role_elsewhere_is_forbidden(pool: PgPool) {
+        give_role(&pool, "log121", "visiteur").await;
+        let courses = open_sum(&pool, "role-other-course").await;
+        let cookie = signed_in_without_role(&pool, "visiteur").await;
+        assert_eq!(
+            get_statement(&pool, courses, &cookie, "sum").await.0,
+            StatusCode::FORBIDDEN
+        );
+    }
+
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL"]
+    async fn submission_requires_role(pool: PgPool) {
+        let courses = open_sum(&pool, "role-submission").await;
+        let cookie = signed_in_without_role(&pool, "visiteur").await;
+        assert_eq!(
+            post_submission(&pool, courses, &cookie, SUM).await,
+            StatusCode::FORBIDDEN
+        );
+        assert_eq!(waiting_jobs(&pool).await, 0);
+    }
+
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL"]
+    async fn draft_requires_role(pool: PgPool) {
+        let courses = open_sum(&pool, "role-draft").await;
+        let cookie = signed_in_without_role(&pool, "visiteur").await;
+        let write = r#"{"base":0,"source":"print(1)"}"#;
+        assert_eq!(
+            put_draft(&pool, courses.clone(), &cookie, write).await.0,
+            StatusCode::FORBIDDEN
+        );
+        assert_eq!(
+            get_draft(&pool, courses, &cookie).await.0,
+            StatusCode::FORBIDDEN
+        );
+    }
+
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL"]
+    async fn catalog_requires_role(pool: PgPool) {
+        let courses = open_sum(&pool, "role-catalog").await;
+        let router = app(pool.clone(), Directory::unreachable(), courses);
+        let cookie = signed_in_without_role(&pool, "visiteur").await;
+        assert_eq!(
+            fetch(router, &cookie, "/courses/log200/exercises").await.0,
+            StatusCode::FORBIDDEN
+        );
+    }
+
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL"]
     async fn unknown_course_is_not_found(pool: PgPool) {
+        // A role, but no release: the course is not published
+        give_role(&pool, "log121", "etudiant1").await;
         let router = app(
             pool.clone(),
             Directory::unreachable(),

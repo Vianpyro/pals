@@ -13,11 +13,12 @@ use sqlx::PgPool;
 use super::{gate, schedule, session::Account};
 
 pub(super) async fn catalog(
-    Account(_): Account,
+    Account(account): Account,
     State(pool): State<PgPool>,
     State(courses): State<Arc<path::Path>>,
     Path(course): Path<Id>,
 ) -> Result<Json<Vec<CatalogEntry>>, StatusCode> {
+    gate::member(&pool, &course, &account).await?;
     let ids = content::exercises(&courses.join(course.as_str())).map_err(gate::status_of)?;
     // One instant for the whole list: two exercises never disagree about what time it is
     let now = SystemTime::now();

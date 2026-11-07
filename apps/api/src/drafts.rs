@@ -86,7 +86,7 @@ pub(super) async fn draft(
     State(courses): State<Arc<path::Path>>,
     Path((course, exercise)): Path<(Id, Id)>,
 ) -> Result<Json<Draft>, StatusCode> {
-    gate::open_exercise(&pool, &courses, &course, &exercise).await?;
+    gate::open_exercise(&pool, &courses, &author, &course, &exercise).await?;
     current(&pool, &author, &course, &exercise).await.map(Json)
 }
 
@@ -100,7 +100,7 @@ pub(super) async fn save(
     if write.source.len() > MAX_SOURCE {
         return Err(StatusCode::UNPROCESSABLE_ENTITY);
     }
-    gate::open_exercise(&pool, &courses, &course, &exercise).await?;
+    gate::open_exercise(&pool, &courses, &author, &course, &exercise).await?;
 
     if let Some(revision) = apply(&pool, &author, &course, &exercise, &write).await? {
         return Ok(Json(DraftSaved { revision }).into_response());
