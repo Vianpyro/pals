@@ -1,0 +1,11 @@
+# The build context is the repository root: send only what Cargo and the image read
+*
+!Cargo.toml
+!Cargo.lock
+!rust-toolchain.toml
+!.sqlx/
+!apps/*/Cargo.toml
+!apps/*/src/
+!packages/*/Cargo.toml
+!packages/*/src/
+!packs/languages/
