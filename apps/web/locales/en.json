@@ -47,5 +47,15 @@
   "run.notPassed": "Failed: at least one test does not pass.",
   "run.replaced": "Replaced by a newer submission.",
   "run.failed": "Judging failed: tell your instructor.",
-  "run.unknown": "Unknown state: reload the page."
+  "run.unknown": "Unknown state: reload the page.",
+
+  "cases.title": "Visible tests of the latest submission",
+  "case.result": "Test {number}: {verdict}",
+  "case.passed": "passed",
+  "case.wrongAnswer": "wrong answer",
+  "case.crashed": "runtime error",
+  "case.timedOut": "time limit exceeded",
+  "case.unknown": "unknown result, reload the page",
+  "case.noOutput": "No output.",
+  "case.truncated": "Output cut: it is longer than 64 KiB."
 }

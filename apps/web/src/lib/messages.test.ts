@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Translate } from "./i18n.ts";
-import { availabilityText, failureText, runText, saveText } from "./messages.ts";
+import { availabilityText, caseText, failureText, runText, saveText } from "./messages.ts";
 
 // Shows which key and values were asked for, so the tests check the decision, not the wording
 const t: Translate = (key, values) => (values ? `${key} ${JSON.stringify(values)}` : key);
@@ -30,6 +30,18 @@ test("a judged run says whether it passed", () => {
 test("a state the API added after this page shows the fallback text", () => {
     const newer = { state: "cancelled" } as unknown as Parameters<typeof runText>[1];
     assert.equal(runText(t, newer), "run.unknown");
+});
+
+test("each case verdict has its own text", () => {
+    assert.equal(caseText(t, "passed"), "case.passed");
+    assert.equal(caseText(t, "wrong-answer"), "case.wrongAnswer");
+    assert.equal(caseText(t, "crashed"), "case.crashed");
+    assert.equal(caseText(t, "timed-out"), "case.timedOut");
+});
+
+test("a case verdict the API added after this page shows the fallback text", () => {
+    const newer = "memory-exceeded" as unknown as Parameters<typeof caseText>[1];
+    assert.equal(caseText(t, newer), "case.unknown");
 });
 
 test("a draft is saved, being saved, or not saved whatever the reason", () => {

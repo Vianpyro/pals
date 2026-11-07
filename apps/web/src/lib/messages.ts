@@ -1,4 +1,5 @@
 // What the student reads for each outcome: the decisions of the page, apart from its markup.
+import type { CaseVerdict } from "@log791/contracts/CaseVerdict";
 import type { CatalogEntry } from "@log791/contracts/CatalogEntry";
 import type { RunStatus } from "@log791/contracts/RunStatus";
 import type { Failure } from "@log791/ui/api";
@@ -30,6 +31,22 @@ export function runText(t: Translate, status: RunStatus): string {
             return t("run.failed");
         default:
             return t("run.unknown");
+    }
+}
+
+/** A visible case's verdict in words. A verdict added to the API after this page shows the fallback (spec D22). */
+export function caseText(t: Translate, verdict: CaseVerdict): string {
+    switch (verdict) {
+        case "passed":
+            return t("case.passed");
+        case "wrong-answer":
+            return t("case.wrongAnswer");
+        case "crashed":
+            return t("case.crashed");
+        case "timed-out":
+            return t("case.timedOut");
+        default:
+            return t("case.unknown");
     }
 }
 

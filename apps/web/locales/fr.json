@@ -47,5 +47,15 @@
   "run.notPassed": "Échoué : au moins un test ne passe pas.",
   "run.replaced": "Remplacée par une soumission plus récente.",
   "run.failed": "La correction a échoué : prévenez l'enseignant.",
-  "run.unknown": "État inconnu : rechargez la page."
+  "run.unknown": "État inconnu : rechargez la page.",
+
+  "cases.title": "Tests visibles de la dernière soumission",
+  "case.result": "Test {number} : {verdict}",
+  "case.passed": "réussi",
+  "case.wrongAnswer": "mauvaise réponse",
+  "case.crashed": "erreur d'exécution",
+  "case.timedOut": "temps limite dépassé",
+  "case.unknown": "résultat inconnu, rechargez la page",
+  "case.noOutput": "Aucune sortie.",
+  "case.truncated": "Sortie tronquée : elle dépasse 64 Kio."
 }

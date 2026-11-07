@@ -8,6 +8,7 @@
     import Catalog from "./Catalog.svelte";
     import Exercise from "./Exercise.svelte";
     import SignIn from "./SignIn.svelte";
+    import { withCase, withRun, type Cases } from "./lib/cases.ts";
     import type { Translate } from "./lib/i18n.ts";
     import { failureText, isSignedOut } from "./lib/messages.ts";
 
@@ -26,14 +27,19 @@
 
     // The student's runs as the event stream last told them, by id; one stream per tab (ADR-0008)
     let live: Record<string, Run> = $state({});
+    let cases: Cases = $state({});
     let streaming = $state(true);
     $effect(() => {
         if (view !== "course") return;
         streaming = true;
-        const stream = followRuns(
-            (run) => (live[run.id] = run),
-            () => (streaming = false),
-        );
+        const stream = followRuns({
+            onRun: (run) => {
+                live[run.id] = run;
+                cases = withRun(cases, run);
+            },
+            onCase: (result) => (cases = withCase(cases, result)),
+            onClosed: () => (streaming = false),
+        });
         return () => stream.close();
     });
 
@@ -98,6 +104,7 @@
                         {say}
                         {course}
                         {live}
+                        {cases}
                         {streaming}
                         id={exercise.id}
                         statement={exercise.statement}

@@ -1,19 +1,22 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import type { CaseResult } from "@log791/contracts/CaseResult";
 import type { Run } from "@log791/contracts/Run";
+import type { Listeners } from "@log791/ui/events";
+import type { Exercise } from "./content.ts";
 import type { Outcome as CaseOutcome } from "./judging.ts";
 import { createServer, PASSWORD } from "./server.ts";
 import { memoryStorage } from "./storage.ts";
 
 const COURSE = "log200";
-const sum = { id: "sum", statement: "# Somme", cases: [{ input: "1 2\n", expected: "3\n" }] };
+const sum: Exercise = { id: "sum", statement: "# Somme", cases: [{ input: "1 2\n", expected: "3\n", visible: true }] };
 
 type Run_ = (source: string, input: string) => Promise<CaseOutcome>;
 const rightAnswer: Run_ = async () => ({ kind: "exited", success: true, stdout: "3\n" });
 
-function server({ storage = memoryStorage(), run = rightAnswer } = {}) {
+function server({ storage = memoryStorage(), run = rightAnswer, exercises = [sum] } = {}) {
     let ids = 0;
-    return createServer(storage, { course: COURSE, exercises: [sum] }, run, () => `run-${++ids}`);
+    return createServer(storage, { course: COURSE, exercises }, run, () => `run-${++ids}`);
 }
 
 async function signedIn(options = {}) {
@@ -29,19 +32,28 @@ const value = <T>(outcome: { ok: true; value: T } | { ok: false }): T => {
 const refused = (status: number) => ({ ok: false, failure: { kind: "status", status } });
 const submission = { course: COURSE, exercise: "sum", language_pack: "python", source: "print(3)" };
 
-// The states a run goes through, until it is judged
+const ignore: Listeners = { onRun: () => {}, onCase: () => {}, onClosed: () => {} };
+
+// The states a run goes through and the cases it reports, until it is judged
 function follow(created: ReturnType<typeof server>) {
     const seen: Run[] = [];
+    const cases: CaseResult[] = [];
+    const events: string[] = [];
     const done = new Promise<void>((resolve) => {
-        created.followRuns(
-            (run) => {
+        created.followRuns({
+            ...ignore,
+            onRun: (run) => {
                 seen.push(run);
+                events.push(run.state);
                 if (run.state === "done" || run.state === "failed") resolve();
             },
-            () => {},
-        );
+            onCase: (result) => {
+                cases.push(result);
+                events.push(`case ${result.position}`);
+            },
+        });
     });
-    return { seen, done };
+    return { seen, cases, events, done };
 }
 
 test("everything but signing in asks for a session", async () => {
@@ -164,6 +176,29 @@ test("a run goes from waiting through running to its verdict, in the stream and 
     assert.equal(value(await created.api.progress(id)).state, "done");
 });
 
+test("each visible case reaches the stream as it ends, before the verdict, and no hidden one", async () => {
+    const product: Exercise = {
+        id: "product",
+        statement: "# Produit",
+        cases: [
+            { input: "2 3\n", expected: "6\n", visible: true },
+            { input: "1 1\n", expected: "1\n", visible: true },
+            { input: "4 5\n", expected: "20\n", visible: false },
+        ],
+    };
+    const created = await signedIn({ exercises: [product], run: async () => ({ kind: "exited", success: true, stdout: "6\n" }) });
+    const { cases, events, done } = follow(created);
+
+    const { id } = value(await created.api.submit({ ...submission, exercise: "product" }));
+    await done;
+
+    assert.deepEqual(events, ["waiting", "running", "case 0", "case 1", "done"]);
+    assert.deepEqual(cases, [
+        { run: id, position: 0, verdict: "passed", actual: "6\n", truncated: false },
+        { run: id, position: 1, verdict: "wrong-answer", actual: "6\n", truncated: false },
+    ]);
+});
+
 test("a wrong program is judged as not passed", async () => {
     const created = await signedIn({ run: async () => ({ kind: "exited", success: true, stdout: "0\n" }) });
     const { seen, done } = follow(created);
@@ -233,8 +268,8 @@ test("a run cut off by a reload shows as failed, not as waiting forever", async 
 
 test("a closed stream hears nothing more", async () => {
     const created = await signedIn();
-    const seen: Run[] = [];
-    created.followRuns((run) => seen.push(run), () => {}).close();
+    const seen: unknown[] = [];
+    created.followRuns({ ...ignore, onRun: (run) => seen.push(run), onCase: (result) => seen.push(result) }).close();
     const { done } = follow(created);
     await created.api.submit(submission);
     await done;

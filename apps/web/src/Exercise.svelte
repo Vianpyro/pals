@@ -2,15 +2,17 @@
     import type { Run } from "@log791/contracts/Run";
     import { draft, history, progress, saveDraft, submit } from "@log791/ui/api";
     import { onMount } from "svelte";
+    import type { Cases } from "./lib/cases.ts";
     import { Autosave, type SaveState } from "./lib/draft.ts";
     import type { Translate } from "./lib/i18n.ts";
-    import { failureText, isSignedOut, runText, saveText } from "./lib/messages.ts";
+    import { caseText, failureText, isSignedOut, runText, saveText } from "./lib/messages.ts";
 
     let {
         t,
         say,
         course,
         live,
+        cases,
         streaming,
         id,
         statement,
@@ -21,6 +23,8 @@
         course: string;
         /** The runs as the event stream last told them, by id (App.svelte) */
         live: Record<string, Run>;
+        /** The visible cases the event stream reported, by run (App.svelte) */
+        cases: Cases;
         /** False once the stream stopped for good: then this page polls (ADR-0008) */
         streaming: boolean;
         id: string;
@@ -36,6 +40,8 @@
     let runs: Run[] = $state([]);
     // The history as last read, each run replaced by what the stream told of it since
     const shown = $derived(runs.map((run) => live[run.id] ?? run));
+    // The newest run's: the stream replays only the latest run of each exercise (ADR-0030)
+    const results = $derived(shown.length > 0 ? (cases[shown[0].id] ?? []) : []);
     // The run just submitted, whose progress the status line tells
     let followed: string | null = $state(null);
     let source = $state("");
@@ -171,6 +177,26 @@
             <button type="button" onclick={() => saver?.keepMine()}>{t("draft.keepMine")}</button>
             <button type="button" onclick={takeSaved}>{t("draft.takeSaved")}</button>
         </section>
+    {/if}
+
+    {#if results.length > 0}
+        <h3 id="cases-title">{t("cases.title")}</h3>
+        <ul aria-labelledby="cases-title">
+            {#each results as result (result.position)}
+                <li>
+                    {t("case.result", { number: result.position + 1, verdict: caseText(t, result.verdict) })}
+                    <!-- Text, never HTML: the program's output is the student's -->
+                    {#if result.actual === ""}
+                        <p>{t("case.noOutput")}</p>
+                    {:else}
+                        <pre>{result.actual}</pre>
+                    {/if}
+                    {#if result.truncated}
+                        <p>{t("case.truncated")}</p>
+                    {/if}
+                </li>
+            {/each}
+        </ul>
     {/if}
 
     <h3 id="history-title">{t("exercise.history")}</h3>

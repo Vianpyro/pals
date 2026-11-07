@@ -1,8 +1,8 @@
 // What the API does, in the browser: the demo has no server (GitHub Pages serves files).
 // `typeof Api` below makes the type checker refuse any drift from the real client (packages/ui).
 import type { Identity } from "@log791/contracts/Identity";
-import type { Run } from "@log791/contracts/Run";
 import type * as Api from "@log791/ui/api";
+import type { Listeners } from "@log791/ui/events";
 import type { Exercise } from "./content.ts";
 import { readDraft, writeDraft } from "./drafts.ts";
 import { createRecords } from "./records.ts";
@@ -27,7 +27,7 @@ export function createServer(
     content: Content,
     runCase: RunCase,
     newId: () => string = () => crypto.randomUUID(),
-): { api: typeof Api; followRuns: (onRun: (run: Run) => void, onClosed: () => void) => { close: () => void } } {
+): { api: typeof Api; followRuns: (listeners: Listeners) => { close: () => void } } {
     const records = createRecords(storage);
     const runs = createRuns(records, runCase, newId);
 
@@ -90,5 +90,5 @@ export function createServer(
     };
 
     // The stream never stops, so the page never falls back to polling: `onClosed` is not called
-    return { api, followRuns: (onRun) => runs.follow(onRun) };
+    return { api, followRuns: (listeners) => runs.follow(listeners) };
 }

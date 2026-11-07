@@ -1,7 +1,8 @@
 // The students' runs: kept with no source, judged one at a time, and told to whoever follows them.
 import type { Run } from "@log791/contracts/Run";
 import type { RunStatus } from "@log791/contracts/RunStatus";
-import { judgeCases, type Case, type Outcome } from "./judging.ts";
+import type { Listeners } from "@log791/ui/events";
+import { judgeCases, type Case, type Outcome, type Report } from "./judging.ts";
 import type { Records } from "./records.ts";
 
 const MAX_RUNS = 50;
@@ -15,7 +16,7 @@ const unjudged = ({ state }: Run) => state === "waiting" || state === "running";
 const sameOwner = (a: Owner, b: Owner) => a.student === b.student && a.course === b.course && a.exercise === b.exercise;
 
 export function createRuns(records: Records, runCase: RunCase, newId: () => string) {
-    const followers = new Set<(run: Run) => void>();
+    const followers = new Set<Listeners>();
     // The runs this tab is judging. A worker dies with its tab, so no other unjudged run will finish.
     const judging = new Set<string>();
     let queue = Promise.resolve();
@@ -29,7 +30,12 @@ export function createRuns(records: Records, runCase: RunCase, newId: () => stri
     function publish(next: StoredRun) {
         // shortcut: a run reaches only the tab that submitted it; another tab sees it when it next reads the history
         records.write("runs", [next, ...stored().filter(({ run }) => run.id !== next.run.id)].slice(0, MAX_RUNS));
-        for (const follower of followers) follower(next.run);
+        for (const follower of followers) follower.onRun(next.run);
+    }
+
+    // shortcut: cases are not stored, so a reload shows none; the API replays the latest run's (ADR-0030)
+    function tell(run: string, report: Report) {
+        for (const follower of followers) follower.onCase({ run, ...report });
     }
 
     function advance(from: StoredRun, status: RunStatus): StoredRun {
@@ -42,7 +48,12 @@ export function createRuns(records: Records, runCase: RunCase, newId: () => stri
         const running = advance(waiting, { state: "running" });
         let status: RunStatus;
         try {
-            status = { state: "done", passed: await judgeCases(cases, (input) => runCase(source, input)) };
+            const passed = await judgeCases(
+                cases,
+                (input) => runCase(source, input),
+                (report) => tell(running.run.id, report),
+            );
+            status = { state: "done", passed };
         } catch {
             status = { state: "failed" };
         }
@@ -72,9 +83,9 @@ export function createRuns(records: Records, runCase: RunCase, newId: () => stri
             return found && current(found);
         },
 
-        follow(onRun: (run: Run) => void) {
-            followers.add(onRun);
-            return { close: () => void followers.delete(onRun) };
+        follow(listeners: Listeners) {
+            followers.add(listeners);
+            return { close: () => void followers.delete(listeners) };
         },
     };
 }

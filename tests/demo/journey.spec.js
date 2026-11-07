@@ -59,6 +59,25 @@ test("a correct program passes in the browser, with no call to a server", async 
     await expectAccessible(page);
 });
 
+test("each visible test shows its verdict and what the program printed, and no hidden one", async ({ page }) => {
+    test.slow();
+    await signIn(page);
+    await openSum(page);
+
+    await editor(page).fill("print(8)\n");
+    await page.getByRole("button", { name: "Soumettre" }).click();
+
+    // sum has two visible cases: 3 5 gives 8, -3 -5 gives -8
+    const tests = page.getByRole("list", { name: "Tests visibles de la dernière soumission" }).getByRole("listitem");
+    await expect(tests).toHaveCount(2, VERDICT);
+    await expect(tests.nth(0)).toContainText("Test 1 : réussi");
+    await expect(tests.nth(1)).toContainText("Test 2 : mauvaise réponse");
+    await expect(tests.nth(1)).toContainText("8");
+    await expect(page.getByRole("status")).toHaveText("Échoué : au moins un test ne passe pas.", VERDICT);
+    await expect(tests).toHaveCount(2);
+    await expectAccessible(page);
+});
+
 test("the Python pack's conformance programs get the judge's verdicts", async ({ page }) => {
     test.slow();
     await signIn(page);
