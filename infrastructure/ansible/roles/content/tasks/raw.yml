@@ -1,0 +1,34 @@
+---
+# The hidden tests: readable by the judge's user only. One directory per git revision, so a test
+# removed from the content is gone from the judges too, and the switch is one symbolic link.
+- name: Create the content directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: log791-judge
+    mode: "0750"
+  loop:
+    - "{{ log791_content_dir }}"
+    - "{{ log791_content_revisions }}"
+    - "{{ content_revision_dir }}"
+
+- name: Unpack the content at its revision for {{ content_course.key }}
+  ansible.builtin.unarchive:
+    src: "{{ content_course.value.archive }}"
+    dest: "{{ content_revision_dir }}"
+    creates: "{{ content_revision_dir }}/.unpacked"
+
+# Written after the archive is complete: a run stopped while unpacking unpacks it again
+- name: Mark the revision as unpacked for {{ content_course.key }}
+  ansible.builtin.copy:
+    content: ""
+    dest: "{{ content_revision_dir }}/.unpacked"
+    mode: "0644"
+
+- name: Switch the content to this revision for {{ content_course.key }}
+  ansible.builtin.file:
+    src: "{{ content_revision_dir }}"
+    dest: "{{ log791_content_dir }}/{{ content_course.key }}"
+    state: link
+    force: true

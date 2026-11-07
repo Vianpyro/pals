@@ -1,0 +1,2 @@
+---
+content_revision_dir: "{{ log791_content_revisions }}/{{ content_course.key }}-{{ content_course.value.revision }}"

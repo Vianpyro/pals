@@ -1,0 +1,15 @@
+---
+# Each release is immutable and named by its hash: an existing one is never rewritten
+- name: Copy the releases of {{ content_course.key }}
+  ansible.builtin.copy:
+    src: "{{ content_course.value.published }}/releases/"
+    dest: "{{ log791_courses_dir }}/{{ content_course.key }}/releases/"
+    mode: "0644"
+    directory_mode: "0755"
+
+# Last, so it never names a release that is not there yet
+- name: Switch to the new release for {{ content_course.key }}
+  ansible.builtin.copy:
+    src: "{{ content_course.value.published }}/current"
+    dest: "{{ log791_courses_dir }}/{{ content_course.key }}/current"
+    mode: "0644"

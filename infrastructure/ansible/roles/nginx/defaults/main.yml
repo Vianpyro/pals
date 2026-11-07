@@ -1,0 +1,7 @@
+---
+# The name students type, under which the certificate is issued
+nginx_server_name: localhost
+# Where the certificate comes from, still to decide with the ÉTS (architecture, TLS):
+#   files        nginx_tls_certificate and nginx_tls_certificate_key, PEM, from the vault
+#   self-signed  generated on the VM, for the local inventory only
+nginx_tls_source: files

@@ -1,0 +1,23 @@
+---
+# Runs on the operator's machine, which needs docker, git and gh (README). The VMs then receive
+# plain files: nothing on them pulls from GitHub, and only the judges run Docker.
+
+- name: Check that the inventory names the version to deploy
+  ansible.builtin.assert:
+    that:
+      - log791_version is defined
+      - log791_courses is defined
+    fail_msg: "Set log791_version (an image tag, e.g. 0.1.46) and log791_courses in the inventory, or pass -e log791_version=..."
+
+- name: Extract each image's files
+  ansible.builtin.include_tasks: extract.yml
+  loop: [web, api, judge, publisher]
+  loop_control:
+    loop_var: artifacts_app
+
+- name: Publish each course's content
+  ansible.builtin.include_tasks: publish.yml
+  loop: "{{ log791_courses }}"
+  loop_control:
+    loop_var: artifacts_course
+    label: "{{ artifacts_course.id }}"

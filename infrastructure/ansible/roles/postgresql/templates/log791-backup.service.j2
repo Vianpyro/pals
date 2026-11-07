@@ -1,0 +1,9 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Dump the LOG791 database, keeping {{ postgresql_backup_days }} days
+
+[Service]
+Type=oneshot
+User=postgres
+ExecStart=/bin/sh -c 'pg_dump --format=custom --file=/var/backups/log791/{{ log791_database_name }}-$(date +%%F).dump {{ log791_database_name }}'
+ExecStartPost=/usr/bin/find /var/backups/log791 -name '*.dump' -mtime +{{ postgresql_backup_days }} -delete

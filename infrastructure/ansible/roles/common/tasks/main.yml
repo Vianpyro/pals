@@ -1,0 +1,38 @@
+---
+# What every VM needs, whatever its role (ADR-0006)
+
+- name: Install the base packages
+  ansible.builtin.apt:
+    name:
+      # Security fixes only, as Ubuntu configures it by default
+      - unattended-upgrades
+      # The deb822 repositories of the gvisor and postgresql roles
+      - python3-debian
+      - ufw
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Create the platform's directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - "{{ log791_bin }}"
+    - "{{ log791_config }}"
+    - /srv/log791
+
+# SSH before the default policy: enabling the firewall must not cut the operator's connection
+- name: Let the operator in over SSH
+  community.general.ufw:
+    rule: allow
+    port: "22"
+    proto: tcp
+
+- name: Refuse every other incoming connection
+  community.general.ufw:
+    state: enabled
+    direction: incoming
+    policy: deny

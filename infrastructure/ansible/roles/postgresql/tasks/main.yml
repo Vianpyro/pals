@@ -1,0 +1,118 @@
+---
+# The only stateful component (ADR-0010). From PostgreSQL's own repository, so every Ubuntu LTS
+# runs the version the migrations are tested on.
+
+- name: Add the PostgreSQL repository
+  ansible.builtin.deb822_repository:
+    name: pgdg
+    uris: https://apt.postgresql.org/pub/repos/apt
+    suites: "{{ ansible_facts['distribution_release'] }}-pgdg"
+    components: main
+    signed_by: https://www.postgresql.org/media/keys/ACCC4CF8.asc
+
+- name: Install PostgreSQL
+  ansible.builtin.apt:
+    name:
+      - postgresql-{{ postgresql_version }}
+      # For the community.postgresql modules below
+      - python3-psycopg2
+    update_cache: true
+
+- name: Listen on the network, where pg_hba.conf and the firewall decide who gets in
+  ansible.builtin.copy:
+    dest: /etc/postgresql/{{ postgresql_version }}/main/conf.d/log791.conf
+    content: |
+      listen_addresses = '*'
+    mode: "0644"
+  notify: Restart PostgreSQL
+
+- name: Accept only the platform's users, from the VMs that need them
+  ansible.builtin.template:
+    src: pg_hba.conf.j2
+    dest: /etc/postgresql/{{ postgresql_version }}/main/pg_hba.conf
+    owner: postgres
+    group: postgres
+    mode: "0640"
+  notify: Reload PostgreSQL
+
+- name: Start PostgreSQL at boot
+  ansible.builtin.service:
+    name: postgresql
+    state: started
+    enabled: true
+
+- name: Apply the new configuration before creating users
+  ansible.builtin.meta: flush_handlers
+
+- name: Create the users
+  become: true
+  become_user: postgres
+  community.postgresql.postgresql_user:
+    name: "{{ item.name }}"
+    password: "{{ item.password }}"
+    # The owner runs the migrations, which create the api and judge roles
+    role_attr_flags: "{{ item.flags }}"
+  loop:
+    - { name: "{{ log791_database_owner }}", password: "{{ vault_database_owner_password }}", flags: CREATEROLE }
+    - { name: "{{ log791_database_api_user }}", password: "{{ vault_database_api_password }}", flags: "" }
+    - { name: "{{ log791_database_judge_user }}", password: "{{ vault_database_judge_password }}", flags: "" }
+  loop_control:
+    label: "{{ item.name }}"
+  no_log: true
+
+- name: Create the database
+  become: true
+  become_user: postgres
+  community.postgresql.postgresql_db:
+    name: "{{ log791_database_name }}"
+    owner: "{{ log791_database_owner }}"
+
+# Created here too, so they can be granted before the first migration; the migration skips them
+- name: Create the roles the migrations grant to
+  become: true
+  become_user: postgres
+  community.postgresql.postgresql_user:
+    name: "{{ item }}"
+    role_attr_flags: NOLOGIN
+  loop: [api, judge]
+
+- name: Give each login user its role (db/migrations/0002_queue_roles.sql)
+  become: true
+  become_user: postgres
+  community.postgresql.postgresql_membership:
+    memberships:
+      - { groups: [api], target_roles: ["{{ log791_database_api_user }}"] }
+      - { groups: [judge], target_roles: ["{{ log791_database_judge_user }}"] }
+
+- name: Open PostgreSQL to the web and judge VMs only
+  community.general.ufw:
+    rule: allow
+    port: "5432"
+    proto: tcp
+    from_ip: "{{ item }}"
+  loop: "{{ postgresql_client_addresses }}"
+
+- name: Create the backup directory
+  ansible.builtin.file:
+    path: /var/backups/log791
+    state: directory
+    owner: postgres
+    group: postgres
+    mode: "0700"
+
+- name: Install the nightly backup
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: /etc/systemd/system/{{ item }}
+    mode: "0644"
+  loop: [log791-backup.service, log791-backup.timer]
+  notify: Reload systemd
+
+- name: Make systemd read the new units
+  ansible.builtin.meta: flush_handlers
+
+- name: Run the backup every night
+  ansible.builtin.systemd_service:
+    name: log791-backup.timer
+    state: started
+    enabled: true

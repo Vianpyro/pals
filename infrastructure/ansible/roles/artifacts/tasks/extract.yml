@@ -1,0 +1,47 @@
+---
+- name: Pull the image of {{ artifacts_app }}
+  ansible.builtin.command: docker pull --quiet {{ artifacts_image }}
+  changed_when: false
+  when: log791_verify_attestation
+
+- name: Read the image of {{ artifacts_app }}
+  ansible.builtin.command: docker image inspect {{ artifacts_image }}
+  register: artifacts_inspected
+  changed_when: false
+
+- name: Find the digest of the image of {{ artifacts_app }}
+  ansible.builtin.set_fact:
+    artifacts_id: "{{ artifacts_image_facts.Id.split(':') | last }}"
+    artifacts_digest: >-
+      {{ artifacts_image_facts.RepoDigests
+         | select('match', (log791_image_prefix ~ '-' ~ artifacts_app ~ '@') | regex_escape)
+         | first | default('') }}
+  vars:
+    artifacts_image_facts: "{{ (artifacts_inspected.stdout | from_json) | first }}"
+
+# The provenance images.yml attests: built by this repository's workflow, from a commit of it
+- name: Verify the provenance of the image of {{ artifacts_app }}
+  ansible.builtin.command: gh attestation verify oci://{{ artifacts_digest }} --repo {{ log791_repository }}
+  changed_when: false
+  when: log791_verify_attestation
+
+# Into a partial directory first: a run stopped halfway leaves nothing a later run would trust
+- name: Extract the files of {{ artifacts_app }}
+  ansible.builtin.shell: |
+    set -euo pipefail
+    rm -rf "{{ artifacts_dir }}.partial"
+    mkdir -p "{{ artifacts_dir }}.partial"
+    container=$(docker create "{{ artifacts_reference }}" none)
+    trap 'docker rm "$container" >/dev/null' EXIT
+    docker cp "$container:/." "{{ artifacts_dir }}.partial"
+    mv "{{ artifacts_dir }}.partial" "{{ artifacts_dir }}"
+  args:
+    executable: /bin/bash
+    creates: "{{ artifacts_dir }}"
+  vars:
+    # What was verified is what is extracted
+    artifacts_reference: "{{ artifacts_digest if log791_verify_attestation else artifacts_image }}"
+
+- name: Remember the extracted files of {{ artifacts_app }}
+  ansible.builtin.set_fact:
+    artifacts_dirs: "{{ artifacts_dirs | default({}) | combine({artifacts_app: artifacts_dir}) }}"

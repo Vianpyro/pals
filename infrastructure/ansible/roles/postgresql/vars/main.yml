@@ -1,0 +1,4 @@
+---
+postgresql_web_addresses: "{{ groups['web'] | map('extract', hostvars, 'log791_ip') | unique | list }}"
+postgresql_judge_addresses: "{{ groups['judge'] | map('extract', hostvars, 'log791_ip') | unique | list }}"
+postgresql_client_addresses: "{{ (postgresql_web_addresses + postgresql_judge_addresses) | unique | list }}"

@@ -1,0 +1,105 @@
+---
+# The page and the API on one origin, over HTTPS only: the session cookie is __Host- (ADR-0017)
+
+- name: Check where the certificate comes from
+  ansible.builtin.assert:
+    that:
+      - nginx_tls_source in ['files', 'self-signed']
+      - nginx_tls_source != 'files' or (nginx_tls_certificate is defined and nginx_tls_certificate_key is defined)
+    fail_msg: "nginx_tls_source is files: put nginx_tls_certificate and nginx_tls_certificate_key in the vault"
+
+- name: Install nginx
+  ansible.builtin.apt:
+    name: nginx
+
+- name: Create the certificate directory
+  ansible.builtin.file:
+    path: /etc/nginx/tls
+    state: directory
+    mode: "0700"
+
+- name: Install the certificate
+  ansible.builtin.copy:
+    content: "{{ item.content }}"
+    dest: /etc/nginx/tls/{{ item.file }}
+    mode: "{{ item.mode }}"
+  loop:
+    - { file: log791.crt, content: "{{ nginx_tls_certificate | default('') }}", mode: "0644" }
+    - { file: log791.key, content: "{{ nginx_tls_certificate_key | default('') }}", mode: "0600" }
+  loop_control:
+    label: "{{ item.file }}"
+  no_log: true
+  when: nginx_tls_source == 'files'
+  notify: Reload nginx
+
+- name: Generate a self-signed certificate
+  ansible.builtin.command:
+    argv: [openssl, req, -x509, -newkey, rsa:2048, -nodes, -days, "3650", -subj, "/CN={{ nginx_server_name }}",
+           -keyout, /etc/nginx/tls/log791.key, -out, /etc/nginx/tls/log791.crt]
+    creates: /etc/nginx/tls/log791.crt
+  when: nginx_tls_source == 'self-signed'
+  notify: Reload nginx
+
+# Checked by tests/web/headers.sh, and mounted as is by the dev container
+- name: Install the rules shared with the dev container
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: /etc/nginx/snippets/{{ item }}
+    mode: "0644"
+  loop: [security-headers.conf, web.conf]
+  notify: Reload nginx
+
+- name: Configure the site
+  ansible.builtin.template:
+    src: log791.conf.j2
+    dest: /etc/nginx/sites-available/log791.conf
+    mode: "0644"
+  notify: Reload nginx
+
+- name: Enable the site
+  ansible.builtin.file:
+    src: /etc/nginx/sites-available/log791.conf
+    dest: /etc/nginx/sites-enabled/log791.conf
+    state: link
+  notify: Reload nginx
+
+- name: Disable the default site
+  ansible.builtin.file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+  notify: Reload nginx
+
+- name: Create the page's directory
+  ansible.builtin.file:
+    path: "{{ log791_web_dir }}"
+    state: directory
+    mode: "0755"
+
+# Assets first, then the page that names them. Old assets stay: a tab opened before the release
+# still loads its own (ADR-0024).
+- name: Copy the page's assets
+  ansible.builtin.copy:
+    src: "{{ log791_artifact_dirs.web }}/srv/web/assets/"
+    dest: "{{ log791_web_dir }}/assets/"
+    mode: "0644"
+    directory_mode: "0755"
+
+- name: Copy the page
+  ansible.builtin.copy:
+    src: "{{ log791_artifact_dirs.web }}/srv/web/"
+    dest: "{{ log791_web_dir }}/"
+    mode: "0644"
+    directory_mode: "0755"
+
+- name: Start nginx at boot
+  ansible.builtin.service:
+    name: nginx
+    state: started
+    enabled: true
+
+- name: Open HTTP and HTTPS
+  community.general.ufw:
+    rule: allow
+    port: "{{ item }}"
+    proto: tcp
+  loop: ["80", "443"]

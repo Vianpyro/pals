@@ -1,0 +1,6 @@
+---
+- name: Restart the API
+  ansible.builtin.systemd_service:
+    name: log791-api
+    state: restarted
+    daemon_reload: true

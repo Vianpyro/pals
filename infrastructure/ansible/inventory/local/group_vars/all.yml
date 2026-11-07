@@ -1,0 +1,27 @@
+---
+# Test values only: these containers hold no real data and are deleted after each run
+
+# The images tests/deploy/run.sh builds, not attested since CI did not build them
+log791_version: test
+log791_image_prefix: log795
+log791_verify_attestation: false
+log791_repository: Vianpyro/LOG795
+
+# A git repository run.sh makes from examples/content
+log791_courses:
+  - id: log200
+    repository: "{{ lookup('ansible.builtin.env', 'LOG791_TEST_CONTENT') }}"
+    version: main
+
+nginx_server_name: localhost
+nginx_tls_source: self-signed
+
+# Never reached: the test opens a session in the database instead of signing in
+api_ldap_url: ldaps://ldap.invalid:636
+api_ldap_base_dn: dc=log791,dc=ca
+api_ldap_bind_dn: uid=svc-log791,ou=people,dc=log791,dc=ca
+
+vault_ldap_bind_password: test-only
+vault_database_owner_password: test-only-owner
+vault_database_api_password: test-only-api
+vault_database_judge_password: test-only-judge

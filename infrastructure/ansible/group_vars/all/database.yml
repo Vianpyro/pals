@@ -1,0 +1,16 @@
+---
+# One database for every course (ADR-0012). Login users get their rights by membership in the
+# api and judge roles the migrations grant to (db/migrations/0002_queue_roles.sql).
+log791_database_name: log791
+log791_database_owner: log791
+log791_database_api_user: log791_api
+log791_database_judge_user: log791_judge
+
+# The address other VMs reach this host at: log791_address in the inventory, otherwise its
+# default route's. Read through hostvars, it is computed for the host it belongs to.
+log791_ip: "{{ log791_address | default(ansible_facts['default_ipv4']['address']) }}"
+log791_database_host: "{{ hostvars[groups['db'][0]]['log791_ip'] }}"
+
+# The owner migrates and enrolls; the API and the judge never use it
+log791_database_owner_url: >-
+  postgres://{{ log791_database_owner }}:{{ vault_database_owner_password | urlencode }}@{{ log791_database_host }}:5432/{{ log791_database_name }}

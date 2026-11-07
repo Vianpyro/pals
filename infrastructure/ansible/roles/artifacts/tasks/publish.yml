@@ -1,0 +1,36 @@
+---
+# shortcut: the publisher runs here, outside the gVisor sandbox ADR-0023 asks for, on content from
+# the course's own repository; move it to that sandbox when instructors push content directly.
+- name: Fetch the content of {{ artifacts_course.id }}
+  ansible.builtin.git:
+    repo: "{{ artifacts_course.repository }}"
+    version: "{{ artifacts_course.version }}"
+    dest: "{{ artifacts_checkout }}"
+    force: true
+  register: artifacts_fetched
+
+- name: Create the archives directory
+  ansible.builtin.file:
+    path: "{{ log791_artifacts }}/archives"
+    state: directory
+    mode: "0755"
+
+# The judges get the raw tree, hidden tests included, as one archive per revision
+- name: Archive the content of {{ artifacts_course.id }}
+  ansible.builtin.command:
+    argv: [git, -C, "{{ artifacts_checkout }}", archive, --format=tar.gz, -o, "{{ artifacts_archive }}", "{{ artifacts_fetched.after }}"]
+    creates: "{{ artifacts_archive }}"
+
+# Named by the hash of what it holds: publishing the same content again writes nothing new
+- name: Publish the release of {{ artifacts_course.id }}
+  ansible.builtin.command:
+    argv: ["{{ artifacts_dirs.publisher }}/publisher", "{{ artifacts_checkout }}", "{{ artifacts_published }}"]
+  changed_when: false
+
+- name: Remember what was published for {{ artifacts_course.id }}
+  ansible.builtin.set_fact:
+    artifacts_publications: >-
+      {{ artifacts_publications | default({}) | combine({artifacts_course.id: {
+           'revision': artifacts_fetched.after,
+           'archive': artifacts_archive,
+           'published': artifacts_published}}) }}

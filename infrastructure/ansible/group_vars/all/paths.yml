@@ -1,0 +1,18 @@
+---
+# Constants, not settings: next to the playbooks, they win over the inventories, which only
+# say where and which version.
+
+# On the VMs
+log791_bin: /opt/log791/bin
+log791_config: /etc/log791
+log791_web_dir: /srv/log791/web
+# The judge's language packs, from its own image
+log791_packs_dir: /opt/log791/packs
+# Releases, named by their content's hash: statements only, never tests (ADR-0005)
+log791_courses_dir: /srv/log791/courses
+# Raw content with the hidden tests: judge VMs only, one directory per git revision
+log791_content_dir: /srv/log791/content
+log791_content_revisions: /srv/log791/content-revisions
+
+# On the operator's machine: what the images hold, extracted once per image
+log791_artifacts: "{{ playbook_dir }}/.artifacts"

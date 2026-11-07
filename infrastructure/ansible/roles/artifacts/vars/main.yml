@@ -1,0 +1,6 @@
+---
+artifacts_image: "{{ log791_image_prefix }}-{{ artifacts_app }}:{{ log791_version }}"
+artifacts_dir: "{{ log791_artifacts }}/images/{{ artifacts_app }}-{{ artifacts_id[:12] }}"
+artifacts_checkout: "{{ log791_artifacts }}/content/{{ artifacts_course.id }}"
+artifacts_archive: "{{ log791_artifacts }}/archives/{{ artifacts_course.id }}-{{ artifacts_fetched.after }}.tar.gz"
+artifacts_published: "{{ log791_artifacts }}/courses/{{ artifacts_course.id }}"

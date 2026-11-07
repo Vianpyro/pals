@@ -1,0 +1,3 @@
+---
+# Judges per VM, each running one submission at a time: from the sizing report (ADR-0039)
+judge_instances: 1

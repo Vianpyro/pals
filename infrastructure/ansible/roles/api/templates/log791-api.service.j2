@@ -1,0 +1,38 @@
+# {{ ansible_managed }}
+[Unit]
+Description=LOG791 API: sign-in, submissions and verdict notifications
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+User=log791-api
+Group=log791-api
+EnvironmentFile={{ log791_config }}/api.env
+ExecStart={{ log791_bin }}/api
+Restart=on-failure
+RestartSec=2
+
+# It reads releases and talks to PostgreSQL, the directory and nginx: nothing else
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+
+[Install]
+WantedBy=multi-user.target

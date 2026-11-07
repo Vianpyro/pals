@@ -1,0 +1,5 @@
+---
+# The dev container's version (.devcontainer/compose.yml): the migrations are tested on it
+postgresql_version: 18
+# Nightly dumps kept on the VM; copying them off it is still to decide (ADR-0010)
+postgresql_backup_days: 14

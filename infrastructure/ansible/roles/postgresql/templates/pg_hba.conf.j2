@@ -1,0 +1,15 @@
+# {{ ansible_managed }}
+# Each user from the VMs that need it, by password (SCRAM); everything else is refused.
+# shortcut: no TLS between VMs (sqlx is built without it); add hostssl when the crates enable it.
+
+# TYPE  DATABASE  USER  ADDRESS  METHOD
+local   all       postgres          peer
+local   all       all               peer
+{% for address in postgresql_web_addresses %}
+# Migrations and enrollments run from the web VMs
+host    {{ log791_database_name }}  {{ log791_database_owner }}  {{ address }}/32  scram-sha-256
+host    {{ log791_database_name }}  {{ log791_database_api_user }}  {{ address }}/32  scram-sha-256
+{% endfor %}
+{% for address in postgresql_judge_addresses %}
+host    {{ log791_database_name }}  {{ log791_database_judge_user }}  {{ address }}/32  scram-sha-256
+{% endfor %}

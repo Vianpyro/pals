@@ -1,0 +1,71 @@
+---
+# Stateless (ADR-0010): any web VM serves any student, the database holds everything
+
+# A password must never cross the network in clear (ADR-0017)
+- name: Check that the directory is reached over LDAPS
+  ansible.builtin.assert:
+    that:
+      - api_ldap_url is defined and api_ldap_url is match('ldaps://')
+      - api_ldap_base_dn is defined
+      - api_ldap_bind_dn is defined
+      - vault_ldap_bind_password is defined
+    fail_msg: "Set api_ldap_url (ldaps:// only), api_ldap_base_dn, api_ldap_bind_dn and vault_ldap_bind_password"
+
+- name: Create the API's user
+  ansible.builtin.user:
+    name: log791-api
+    system: true
+    shell: /usr/sbin/nologin
+    create_home: false
+
+- name: Install the API
+  ansible.builtin.copy:
+    src: "{{ log791_artifact_dirs.api }}/api"
+    dest: "{{ log791_bin }}/api"
+    mode: "0755"
+  notify: Restart the API
+
+- name: Configure the API
+  ansible.builtin.template:
+    src: api.env.j2
+    dest: "{{ log791_config }}/api.env"
+    owner: root
+    group: log791-api
+    mode: "0640"
+  no_log: true
+  notify: Restart the API
+
+# Before the restart: the new API and the old one both work with the new schema (ADR-0024)
+- name: Migrate the database
+  ansible.builtin.command: "{{ log791_bin }}/api migrate"
+  environment:
+    DATABASE_URL: "{{ log791_database_owner_url }}"
+  run_once: true
+  no_log: true
+  # sqlx says nothing either way, and applying the migrations again does nothing
+  changed_when: false
+
+- name: Install the API's service
+  ansible.builtin.template:
+    src: log791-api.service.j2
+    dest: /etc/systemd/system/log791-api.service
+    mode: "0644"
+  notify: Restart the API
+
+- name: Start the API at boot
+  ansible.builtin.systemd_service:
+    name: log791-api
+    state: started
+    enabled: true
+    daemon_reload: true
+
+- name: Restart the API on its new version
+  ansible.builtin.meta: flush_handlers
+
+- name: Wait for the API to answer
+  ansible.builtin.uri:
+    url: http://127.0.0.1:8080/health
+  register: api_health
+  until: api_health.status == 200
+  retries: 15
+  delay: 2

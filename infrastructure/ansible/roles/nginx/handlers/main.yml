@@ -1,0 +1,6 @@
+---
+# nginx checks the new configuration and keeps the old one if it is wrong
+- name: Reload nginx
+  ansible.builtin.service:
+    name: nginx
+    state: reloaded

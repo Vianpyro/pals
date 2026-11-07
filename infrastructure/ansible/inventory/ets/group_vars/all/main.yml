@@ -1,0 +1,27 @@
+---
+# Production. The secrets go in vault.yml next to this file, encrypted (README).
+
+# Which release to deploy: a tag images.yml pushed, e.g. 0.1.46
+log791_version: ""
+log791_image_prefix: ghcr.io/vianpyro/log795
+log791_verify_attestation: true
+log791_repository: Vianpyro/LOG795
+
+# Each course's content repository, at a tag or commit: never a branch, so a rerun deploys the same
+log791_courses: []
+#  - id: log200
+#    repository: git@github.com:<owner>/<log200-content>.git
+#    version: <tag or commit>
+
+# From the ÉTS: the name students type, and where its certificate comes from (README)
+nginx_server_name: ""
+nginx_tls_source: files
+
+# From the ÉTS directory (ADR-0017)
+api_ldap_url: ""
+api_ldap_base_dn: ""
+api_ldap_bind_dn: ""
+api_ldap_user_attribute: uid
+
+# From the sizing report (ADR-0039)
+judge_instances: 1

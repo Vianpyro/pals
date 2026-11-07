@@ -1,0 +1,18 @@
+---
+# Publishing needs no restart: the API and the judge read the current release on each request
+# (ADR-0005). The artifacts role published everything on the operator's machine.
+
+- name: Copy the releases
+  ansible.builtin.include_tasks: releases.yml
+  loop: "{{ log791_publications | dict2items }}"
+  loop_control:
+    loop_var: content_course
+    label: "{{ content_course.key }}"
+
+- name: Copy the raw content to the judges
+  ansible.builtin.include_tasks: raw.yml
+  loop: "{{ log791_publications | dict2items }}"
+  loop_control:
+    loop_var: content_course
+    label: "{{ content_course.key }}"
+  when: inventory_hostname in groups['judge']

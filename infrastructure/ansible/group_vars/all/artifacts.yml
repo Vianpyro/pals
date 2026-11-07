@@ -1,0 +1,4 @@
+---
+# What the artifacts role found on the operator's machine, for the roles that copy it to the VMs
+log791_artifact_dirs: "{{ hostvars['localhost']['artifacts_dirs'] }}"
+log791_publications: "{{ hostvars['localhost']['artifacts_publications'] }}"
