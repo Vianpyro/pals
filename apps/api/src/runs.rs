@@ -33,7 +33,7 @@ fn status(state: JobState, passed: Option<bool>) -> Option<RunStatus> {
     })
 }
 
-fn internal_error(context: &str, error: impl std::fmt::Display) -> StatusCode {
+pub(super) fn internal_error(context: &str, error: impl std::fmt::Display) -> StatusCode {
     eprintln!("api: {context}: {error}");
     StatusCode::INTERNAL_SERVER_ERROR
 }

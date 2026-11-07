@@ -1,0 +1,88 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT job AS run, position, verdict AS \"verdict: Verdict\", actual, truncated\n            FROM job_cases WHERE job = ANY($1)\n            ORDER BY job, position\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "run",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "job_cases",
+            "name": "job"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "position",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "job_cases",
+            "name": "position"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "verdict: Verdict",
+        "type_info": {
+          "Custom": {
+            "name": "case_verdict",
+            "kind": {
+              "Enum": [
+                "passed",
+                "wrong-answer",
+                "crashed",
+                "timed-out"
+              ]
+            }
+          }
+        },
+        "origin": {
+          "Table": {
+            "table": "job_cases",
+            "name": "verdict"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "actual",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "job_cases",
+            "name": "actual"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "truncated",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "job_cases",
+            "name": "truncated"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "d641c6329a696204a4e6e669ba31bc26cc772ee0114089fbcfb2a9205de4d486"
+}

@@ -17,12 +17,13 @@ use axum::{
 use contracts::{Credentials, Id, Identity, Submission, Submitted};
 use directory::{Directory, SignInError};
 use kind::JobKind;
-use notify::RunChanged;
+use notify::Changed;
 use session::Account;
 use sqlx::{PgPool, migrate::Migrator};
 use tokio::sync::broadcast;
 use uuid::Uuid;
 
+mod cases;
 mod catalog;
 mod directory;
 mod drafts;
@@ -65,7 +66,7 @@ struct AppState {
     pool: PgPool,
     directory: Arc<Directory>,
     courses: Arc<path::Path>,
-    runs: broadcast::Sender<RunChanged>,
+    runs: broadcast::Sender<Changed>,
 }
 
 impl FromRef<AppState> for PgPool {
@@ -86,7 +87,7 @@ impl FromRef<AppState> for Arc<path::Path> {
     }
 }
 
-impl FromRef<AppState> for broadcast::Sender<RunChanged> {
+impl FromRef<AppState> for broadcast::Sender<Changed> {
     fn from_ref(state: &AppState) -> Self {
         state.runs.clone()
     }
@@ -96,7 +97,7 @@ fn app(
     pool: PgPool,
     directory: Directory,
     courses: PathBuf,
-    runs: broadcast::Sender<RunChanged>,
+    runs: broadcast::Sender<Changed>,
 ) -> Router {
     let state = AppState {
         pool,
@@ -283,14 +284,20 @@ mod tests {
             )
         }
 
-        async fn next(&mut self) -> Option<String> {
+        async fn next_event(&mut self) -> Option<(String, String)> {
             use futures_util::StreamExt;
             loop {
                 if let Some(end) = self.pending.find("\n\n") {
                     let event: String = self.pending.drain(..end + 2).collect();
-                    match event.lines().find_map(|line| line.strip_prefix("data: ")) {
-                        Some(data) => return Some(data.to_string()),
-                        None => continue, // a keep-alive comment
+                    let field = |name: &str| {
+                        event
+                            .lines()
+                            .find_map(|line| line.strip_prefix(name))
+                            .map(str::to_owned)
+                    };
+                    match (field("event: "), field("data: ")) {
+                        (Some(name), Some(data)) => return Some((name, data)),
+                        _ => continue, // A keep-alive comment
                     }
                 }
                 let chunk =
@@ -299,6 +306,19 @@ mod tests {
                         .ok()??
                         .unwrap();
                 self.pending.push_str(std::str::from_utf8(&chunk).unwrap());
+            }
+        }
+
+        async fn next(&mut self) -> Option<String> {
+            self.next_event().await.map(|(_, data)| data)
+        }
+
+        async fn next_case(&mut self) -> Option<String> {
+            loop {
+                let (name, data) = self.next_event().await?;
+                if name == "case" {
+                    return Some(data);
+                }
             }
         }
     }
@@ -460,11 +480,28 @@ mod tests {
         fetch(router, cookie, "/courses/log200/exercises/sum/submissions").await
     }
 
-    async fn judge(pool: &PgPool, job: Uuid, verdicts: &str) {
+    async fn claim(pool: &PgPool) {
         sqlx::query("SELECT id FROM claim_job()")
             .execute(pool)
             .await
             .unwrap();
+    }
+
+    async fn report(pool: &PgPool, job: Uuid, position: i32, verdict: &str, actual: &str) {
+        let reported: bool =
+            sqlx::query_scalar("SELECT report_case($1, $2, $3::case_verdict, $4, false)")
+                .bind(job)
+                .bind(position)
+                .bind(verdict)
+                .bind(actual)
+                .fetch_one(pool)
+                .await
+                .unwrap();
+        assert!(reported);
+    }
+
+    async fn judge(pool: &PgPool, job: Uuid, verdicts: &str) {
+        claim(pool).await;
         let finished: bool = sqlx::query_scalar("SELECT finish_job($1, $2::case_verdict[])")
             .bind(job)
             .bind(verdicts)
@@ -482,7 +519,7 @@ mod tests {
     async fn listening(pool: &PgPool) {
         for _ in 0..100 {
             let listeners: i64 = sqlx::query_scalar(
-                "SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND query = 'LISTEN \"runs\"'",
+                "SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND query LIKE '%LISTEN \"cases\"%'",
             )
             .fetch_one(pool)
             .await
@@ -522,7 +559,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn sign_out_without_session_still_clears_the_cookie() {
+    async fn sign_out_always_clears_cookie() {
         let pool = PgPool::connect_lazy("postgres://unused").unwrap();
         let response = sign_out_with(&pool, "").await;
         assert_eq!(response.status(), StatusCode::NO_CONTENT);
@@ -571,7 +608,7 @@ mod tests {
 
     #[sqlx::test(migrations = "../../db/migrations")]
     #[ignore = "needs PostgreSQL"]
-    async fn exercise_without_schedule_is_forbidden(pool: PgPool) {
+    async fn unscheduled_exercise_is_forbidden(pool: PgPool) {
         let courses = published_courses("statement-unscheduled");
         assert_eq!(
             get_statement(&pool, courses, &signed_in(&pool).await, "sum")
@@ -595,7 +632,7 @@ mod tests {
 
     #[sqlx::test(migrations = "../../db/migrations")]
     #[ignore = "needs PostgreSQL"]
-    async fn path_outside_the_course_is_a_bad_request(pool: PgPool) {
+    async fn path_escape_is_bad_request(pool: PgPool) {
         let courses = published_courses("statement-escape");
         assert_eq!(
             get_statement(&pool, courses, &signed_in(&pool).await, "%2E%2E")
@@ -607,7 +644,7 @@ mod tests {
 
     #[sqlx::test(migrations = "../../db/migrations")]
     #[ignore = "needs PostgreSQL"]
-    async fn statement_without_session_is_unauthorized(pool: PgPool) {
+    async fn statement_requires_session(pool: PgPool) {
         schedule_sum(&pool, "-1 hour", Some("1 hour")).await;
         let courses = published_courses("statement-anonymous");
         assert_eq!(
@@ -656,7 +693,7 @@ mod tests {
 
     #[sqlx::test(migrations = "../../db/migrations")]
     #[ignore = "needs PostgreSQL"]
-    async fn submission_without_a_kind_is_queued_as_a_check(pool: PgPool) {
+    async fn missing_kind_is_a_check(pool: PgPool) {
         let courses = open_sum(&pool, "submission-no-kind").await;
         let cookie = signed_in(&pool).await;
         assert_eq!(
@@ -746,7 +783,7 @@ mod tests {
 
     #[sqlx::test(migrations = "../../db/migrations")]
     #[ignore = "needs PostgreSQL"]
-    async fn someone_elses_submission_is_not_found(pool: PgPool) {
+    async fn others_submission_is_not_found(pool: PgPool) {
         let job = enqueue(&pool).await;
         let cookie = signed_in_as(&pool, "etudiant2").await;
         assert_eq!(
@@ -767,7 +804,7 @@ mod tests {
 
     #[sqlx::test(migrations = "../../db/migrations")]
     #[ignore = "needs PostgreSQL"]
-    async fn judged_submission_shows_only_whether_all_passed(pool: PgPool) {
+    async fn judged_submission_hides_cases(pool: PgPool) {
         let failed = enqueue(&pool).await;
         judge(&pool, failed, "{passed,wrong-answer}").await;
         assert_eq!(
@@ -791,7 +828,7 @@ mod tests {
 
     #[sqlx::test(migrations = "../../db/migrations")]
     #[ignore = "needs PostgreSQL"]
-    async fn submission_without_session_is_unauthorized(pool: PgPool) {
+    async fn submission_requires_session(pool: PgPool) {
         let body = r#"{"course": "log200", "exercise": "sum", "language_pack": "python", "source": "print(0)"}"#;
         assert_eq!(
             post_submission(&pool, PathBuf::new(), "", body).await,
@@ -872,7 +909,7 @@ mod tests {
 
     #[sqlx::test(migrations = "../../db/migrations")]
     #[ignore = "needs PostgreSQL"]
-    async fn submission_to_a_closed_exercise_is_forbidden(pool: PgPool) {
+    async fn submit_to_closed_is_forbidden(pool: PgPool) {
         schedule_sum(&pool, "-2 hours", Some("-1 hour")).await;
         let courses = published_courses("submission-closed");
         let body = r#"{"course": "log200", "exercise": "sum", "language_pack": "python", "source": "print(0)"}"#;
@@ -885,7 +922,7 @@ mod tests {
 
     #[sqlx::test(migrations = "../../db/migrations")]
     #[ignore = "needs PostgreSQL"]
-    async fn submission_to_an_unpublished_exercise_is_not_found(pool: PgPool) {
+    async fn submit_to_unpublished_is_not_found(pool: PgPool) {
         let courses = published_courses("submission-unpublished");
         let body = r#"{"course": "log200", "exercise": "missing", "language_pack": "python", "source": "print(0)"}"#;
         assert_eq!(
@@ -930,7 +967,7 @@ mod tests {
 
     #[sqlx::test(migrations = "../../db/migrations")]
     #[ignore = "needs PostgreSQL"]
-    async fn new_submission_replaces_the_waiting_one(pool: PgPool) {
+    async fn new_submission_replaces_waiting(pool: PgPool) {
         let previous = enqueue(&pool).await;
         let cookie = signed_in(&pool).await;
         let courses = open_sum(&pool, "submission-replaces").await;
@@ -967,7 +1004,7 @@ mod tests {
 
     #[sqlx::test(migrations = "../../db/migrations")]
     #[ignore = "needs PostgreSQL"]
-    async fn other_students_waiting_submission_stays(pool: PgPool) {
+    async fn others_waiting_run_stays(pool: PgPool) {
         enqueue(&pool).await;
         let cookie = signed_in_as(&pool, "etudiant2").await;
         let courses = open_sum(&pool, "submission-other-student").await;
@@ -980,7 +1017,7 @@ mod tests {
 
     #[sqlx::test(migrations = "../../db/migrations")]
     #[ignore = "needs PostgreSQL"]
-    async fn catalog_lists_open_and_locked_exercises(pool: PgPool) {
+    async fn catalog_lists_open_and_locked(pool: PgPool) {
         sqlx::query("INSERT INTO schedules VALUES ('log200', 'sum', '2000-01-01T00:00:00Z', NULL)")
             .execute(&pool)
             .await
@@ -1005,7 +1042,7 @@ mod tests {
 
     #[sqlx::test(migrations = "../../db/migrations")]
     #[ignore = "needs PostgreSQL"]
-    async fn catalog_without_session_is_unauthorized(pool: PgPool) {
+    async fn catalog_requires_session(pool: PgPool) {
         let router = app(
             pool,
             Directory::unreachable(),
@@ -1019,7 +1056,7 @@ mod tests {
 
     #[sqlx::test(migrations = "../../db/migrations")]
     #[ignore = "needs PostgreSQL"]
-    async fn catalog_of_an_unknown_course_is_not_found(pool: PgPool) {
+    async fn unknown_course_is_not_found(pool: PgPool) {
         let router = app(
             pool.clone(),
             Directory::unreachable(),
@@ -1058,7 +1095,7 @@ mod tests {
 
     #[sqlx::test(migrations = "../../db/migrations")]
     #[ignore = "needs PostgreSQL"]
-    async fn history_leaves_out_other_students_and_exercises(pool: PgPool) {
+    async fn history_is_per_student_and_exercise(pool: PgPool) {
         enqueue_at(&pool, "etudiant2", "sum", "2026-01-01T08:00:00Z").await;
         enqueue_at(&pool, "etudiant1", "product", "2026-01-01T08:00:00Z").await;
         assert_eq!(
@@ -1102,13 +1139,13 @@ mod tests {
 
     #[sqlx::test(migrations = "../../db/migrations")]
     #[ignore = "needs PostgreSQL"]
-    async fn history_without_session_is_unauthorized(pool: PgPool) {
+    async fn history_requires_session(pool: PgPool) {
         assert_eq!(get_history(&pool, "").await.0, StatusCode::UNAUTHORIZED);
     }
 
     #[sqlx::test(migrations = "../../db/migrations")]
     #[ignore = "needs PostgreSQL"]
-    async fn events_start_with_the_latest_run_of_each_exercise(pool: PgPool) {
+    async fn events_start_with_latest_runs(pool: PgPool) {
         enqueue_at(&pool, "etudiant1", "sum", "2026-01-01T08:00:00Z").await;
         let newer = enqueue_at(&pool, "etudiant1", "sum", "2026-01-01T09:00:00Z").await;
         let product = enqueue_at(&pool, "etudiant1", "product", "2026-01-01T08:00:00Z").await;
@@ -1134,7 +1171,7 @@ mod tests {
 
     #[sqlx::test(migrations = "../../db/migrations")]
     #[ignore = "needs PostgreSQL"]
-    async fn events_follow_ones_runs_and_no_one_elses(pool: PgPool) {
+    async fn events_follow_own_runs_only(pool: PgPool) {
         let (_, mut events) = Events::open(&pool, &signed_in(&pool).await).await;
         listening(&pool).await;
 
@@ -1166,7 +1203,67 @@ mod tests {
 
     #[sqlx::test(migrations = "../../db/migrations")]
     #[ignore = "needs PostgreSQL"]
-    async fn events_without_session_are_unauthorized(pool: PgPool) {
+    async fn events_send_own_cases(pool: PgPool) {
+        let (_, mut events) = Events::open(&pool, &signed_in(&pool).await).await;
+        listening(&pool).await;
+
+        let theirs = enqueue_at(&pool, "etudiant2", "sum", "2026-01-01T08:00:00Z").await;
+        let mine = enqueue_at(&pool, "etudiant1", "sum", "2026-01-01T09:00:00Z").await;
+        claim(&pool).await;
+        claim(&pool).await;
+        report(&pool, theirs, 0, "passed", "5\n").await;
+        report(&pool, mine, 0, "wrong-answer", "3\n").await;
+
+        assert_eq!(
+            events.next_case().await,
+            Some(format!(
+                r#"{{"run":"{mine}","position":0,"verdict":"wrong-answer","actual":"3\n","truncated":false}}"#
+            ))
+        );
+    }
+
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL"]
+    async fn events_replay_cases(pool: PgPool) {
+        let job = enqueue(&pool).await;
+        claim(&pool).await;
+        report(&pool, job, 0, "passed", "5\n").await;
+        report(&pool, job, 1, "timed-out", "").await;
+
+        let (_, mut events) = Events::open(&pool, &signed_in(&pool).await).await;
+        assert_eq!(
+            events.next_case().await,
+            Some(format!(
+                r#"{{"run":"{job}","position":0,"verdict":"passed","actual":"5\n","truncated":false}}"#
+            ))
+        );
+        assert_eq!(
+            events.next_case().await,
+            Some(format!(
+                r#"{{"run":"{job}","position":1,"verdict":"timed-out","actual":"","truncated":false}}"#
+            ))
+        );
+    }
+
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL"]
+    async fn others_cases_are_not_found(pool: PgPool) {
+        let theirs = enqueue_at(&pool, "etudiant2", "sum", "2026-01-01T08:00:00Z").await;
+        claim(&pool).await;
+        report(&pool, theirs, 0, "passed", "5\n").await;
+
+        assert_eq!(cases::one(&pool, theirs, 0, "etudiant1").await, Ok(None));
+        assert!(
+            cases::one(&pool, theirs, 0, "etudiant2")
+                .await
+                .unwrap()
+                .is_some()
+        );
+    }
+
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL"]
+    async fn events_require_session(pool: PgPool) {
         assert_eq!(Events::open(&pool, "").await.0, StatusCode::UNAUTHORIZED);
     }
 
@@ -1258,7 +1355,7 @@ mod tests {
 
     #[sqlx::test(migrations = "../../db/migrations")]
     #[ignore = "needs PostgreSQL"]
-    async fn a_replayed_write_is_acknowledged_again(pool: PgPool) {
+    async fn replayed_write_is_acknowledged(pool: PgPool) {
         let courses = open_sum(&pool, "draft-replayed").await;
         let cookie = signed_in(&pool).await;
         let write = r#"{"base":0,"source":"print(1)"}"#;
@@ -1272,7 +1369,7 @@ mod tests {
 
     #[sqlx::test(migrations = "../../db/migrations")]
     #[ignore = "needs PostgreSQL"]
-    async fn of_two_writes_on_one_base_only_one_applies(pool: PgPool) {
+    async fn racing_writes_apply_once(pool: PgPool) {
         let courses = open_sum(&pool, "draft-race").await;
         let cookie = signed_in(&pool).await;
         let (first, second) = tokio::join!(
@@ -1314,7 +1411,7 @@ mod tests {
 
     #[sqlx::test(migrations = "../../db/migrations")]
     #[ignore = "needs PostgreSQL"]
-    async fn a_draft_of_a_closed_exercise_is_forbidden(pool: PgPool) {
+    async fn draft_of_closed_is_forbidden(pool: PgPool) {
         schedule_sum(&pool, "-2 hours", Some("-1 hour")).await;
         let courses = published_courses("draft-closed");
         let cookie = signed_in(&pool).await;

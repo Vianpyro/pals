@@ -3,6 +3,7 @@
 //! The types the API exchanges with the web interface also have a TypeScript twin in `bindings/`,
 //! written by `cargo test -p contracts` (ts-rs). CI fails when the committed ones differ.
 
+mod case;
 mod catalog;
 mod draft;
 mod id;
@@ -10,6 +11,7 @@ mod run;
 mod session;
 mod submission;
 
+pub use case::{CaseResult, CaseVerdict};
 pub use catalog::CatalogEntry;
 pub use draft::{Draft, DraftSaved, DraftWrite};
 pub use id::{Id, InvalidId};

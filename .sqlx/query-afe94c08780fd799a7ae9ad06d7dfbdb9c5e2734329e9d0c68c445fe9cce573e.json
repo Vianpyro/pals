@@ -1,0 +1,90 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT job_cases.job AS run, position, verdict AS \"verdict: Verdict\", actual, truncated\n            FROM job_cases JOIN runs ON runs.id = job_cases.job\n            WHERE job_cases.job = $1 AND position = $2 AND runs.author = $3\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "run",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "job_cases",
+            "name": "job"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "position",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "job_cases",
+            "name": "position"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "verdict: Verdict",
+        "type_info": {
+          "Custom": {
+            "name": "case_verdict",
+            "kind": {
+              "Enum": [
+                "passed",
+                "wrong-answer",
+                "crashed",
+                "timed-out"
+              ]
+            }
+          }
+        },
+        "origin": {
+          "Table": {
+            "table": "job_cases",
+            "name": "verdict"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "actual",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "job_cases",
+            "name": "actual"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "truncated",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "job_cases",
+            "name": "truncated"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int4",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "afe94c08780fd799a7ae9ad06d7dfbdb9c5e2734329e9d0c68c445fe9cce573e"
+}

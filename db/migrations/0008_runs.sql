@@ -7,3 +7,4 @@ FROM jobs
 WHERE kind <> 'final';
 
 GRANT SELECT ON runs TO api;
+GRANT SELECT ON job_cases TO api;

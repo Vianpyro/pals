@@ -15,3 +15,18 @@ $$;
 CREATE TRIGGER run_changed
 AFTER INSERT OR UPDATE OF state ON jobs
 FOR EACH ROW EXECUTE FUNCTION notify_run_changed();
+
+CREATE FUNCTION notify_case_ended()
+RETURNS trigger
+LANGUAGE plpgsql SET search_path = pg_catalog, pg_temp
+AS $$
+BEGIN
+    -- Author last so splitting stays correct even if it held a space
+    PERFORM pg_notify('cases', NEW.job::text || ' ' || NEW.position || ' ' || (SELECT author FROM public.jobs WHERE id = NEW.job));
+    RETURN NULL;
+END
+$$;
+
+CREATE TRIGGER case_ended
+AFTER INSERT OR UPDATE ON job_cases
+FOR EACH ROW EXECUTE FUNCTION notify_case_ended();
