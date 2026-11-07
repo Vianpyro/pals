@@ -3,7 +3,7 @@
 use std::{
     env,
     error::Error,
-    fs,
+    fs, io,
     path::{self, PathBuf},
     sync::Arc,
 };
@@ -32,6 +32,7 @@ mod gate;
 mod kind;
 mod notify;
 mod roles;
+mod roster;
 mod runs;
 mod schedule;
 mod session;
@@ -56,9 +57,21 @@ async fn main() -> Result<(), Box<dyn Error>> {
             axum::serve(listener, app(pool, directory, courses.into(), runs)).await?;
         }
         Some("migrate") => MIGRATOR.run(&pool).await?,
+        Some("enroll") => enroll(&pool).await.map_err(|error| error.to_string())?,
         Some(command) => return Err(format!("unknown command: {command}").into()),
     }
 
+    Ok(())
+}
+
+async fn enroll(pool: &PgPool) -> Result<(), Box<dyn Error>> {
+    let course: Id = env::args()
+        .nth(2)
+        .ok_or("usage: api enroll <course> < roster.csv")?
+        .parse()?;
+    let roster = roster::parse(&io::read_to_string(io::stdin())?)?;
+    roster::replace(pool, &course, &roster).await?;
+    println!("{}: {} enrollments", course.as_str(), roster.len());
     Ok(())
 }
 

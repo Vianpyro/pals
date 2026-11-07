@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO course_roles (course, account, role) VALUES ($1::text, $2, $3)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        {
+          "Custom": {
+            "name": "course_role",
+            "kind": {
+              "Enum": [
+                "student",
+                "ta",
+                "instructor",
+                "coordinator"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "e768eca30bb1dbfa28a695c76efa9cbb307a733f52771e2844c3d4384068c4b8"
+}

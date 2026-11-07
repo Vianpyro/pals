@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM course_roles WHERE course = $1::text",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "2f8a508ca9bc3db706f07f447d1459fd80d3fad7d5ae8b5312ea42d3bfc5639e"
+}
