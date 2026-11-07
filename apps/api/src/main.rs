@@ -16,6 +16,7 @@ use axum::{
 };
 use contracts::{Credentials, Id, Identity, Submission, Submitted};
 use directory::{Directory, SignInError};
+use kind::JobKind;
 use notify::RunChanged;
 use session::Account;
 use sqlx::{PgPool, migrate::Migrator};
@@ -27,6 +28,7 @@ mod directory;
 mod drafts;
 mod events;
 mod gate;
+mod kind;
 mod notify;
 mod runs;
 mod schedule;
@@ -214,8 +216,8 @@ async fn enqueue_replacing(
 
     let id = sqlx::query_scalar!(
         r#"
-        INSERT INTO jobs (contract, course, exercise, language_pack, source, author)
-        VALUES ($1, $2::text, $3::text, $4::text, $5, $6)
+        INSERT INTO jobs (contract, course, exercise, language_pack, source, author, kind)
+        VALUES ($1, $2::text, $3::text, $4::text, $5, $6, $7)
         RETURNING id AS "id!"
         "#,
         CONTRACT,
@@ -223,7 +225,8 @@ async fn enqueue_replacing(
         submission.exercise.as_str(),
         submission.language_pack.as_str(),
         submission.source,
-        author
+        author,
+        JobKind::from(submission.kind) as JobKind,
     )
     .fetch_one(&mut *transaction)
     .await?;
@@ -411,6 +414,13 @@ mod tests {
 
     async fn waiting_jobs(pool: &PgPool) -> i64 {
         sqlx::query_scalar("SELECT count(*) FROM jobs WHERE state = 'waiting'")
+            .fetch_one(pool)
+            .await
+            .unwrap()
+    }
+
+    async fn waiting_kind(pool: &PgPool) -> String {
+        sqlx::query_scalar("SELECT kind::text FROM jobs WHERE state = 'waiting'")
             .fetch_one(pool)
             .await
             .unwrap()
@@ -629,6 +639,44 @@ mod tests {
             StatusCode::ACCEPTED
         );
         assert_eq!(waiting_jobs(&pool).await, 1);
+    }
+
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL"]
+    async fn precheck_is_queued_as_a_precheck(pool: PgPool) {
+        let body = r#"{"course": "log200", "exercise": "sum", "language_pack": "python", "source": "print(0)", "kind": "precheck"}"#;
+        let courses = open_sum(&pool, "submission-precheck").await;
+        let cookie = signed_in(&pool).await;
+        assert_eq!(
+            post_submission(&pool, courses, &cookie, body).await,
+            StatusCode::ACCEPTED
+        );
+        assert_eq!(waiting_kind(&pool).await, "precheck");
+    }
+
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL"]
+    async fn submission_without_a_kind_is_queued_as_a_check(pool: PgPool) {
+        let courses = open_sum(&pool, "submission-no-kind").await;
+        let cookie = signed_in(&pool).await;
+        assert_eq!(
+            post_submission(&pool, courses, &cookie, SUM).await,
+            StatusCode::ACCEPTED
+        );
+        assert_eq!(waiting_kind(&pool).await, "check");
+    }
+
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL"]
+    async fn final_submission_cannot_be_requested(pool: PgPool) {
+        let body = r#"{"course": "log200", "exercise": "sum", "language_pack": "python", "source": "print(0)", "kind": "final"}"#;
+        let courses = open_sum(&pool, "submission-final").await;
+        let cookie = signed_in(&pool).await;
+        assert_eq!(
+            post_submission(&pool, courses, &cookie, body).await,
+            StatusCode::UNPROCESSABLE_ENTITY
+        );
+        assert_eq!(waiting_jobs(&pool).await, 0);
     }
 
     #[sqlx::test(migrations = "../../db/migrations")]
