@@ -15,7 +15,7 @@ const EXPECTED: [(&str, Verdict); 4] = [
 
 #[tokio::test]
 #[ignore = "needs Docker with runsc"]
-async fn every_pack_gives_the_expected_verdict() {
+async fn every_pack_gives_its_verdict() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let languages = root.join("packs/languages");
     let all = read_cases(&root.join("examples/content/exercises/sum/assessment")).unwrap();

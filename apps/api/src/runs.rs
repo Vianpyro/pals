@@ -141,7 +141,7 @@ mod tests {
     }
 
     #[test]
-    fn a_done_job_without_a_result_is_refused() {
+    fn done_without_result_is_refused() {
         assert_eq!(status(JobState::Done, None), None);
     }
 }

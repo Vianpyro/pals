@@ -199,7 +199,7 @@ mod tests {
     }
 
     #[test]
-    fn job_submitted_before_closing_is_judged_after_it() {
+    fn submitted_before_close_is_judged() {
         let (content, courses) = log200("submitted-before-closing");
         let packs = packs();
         let (_, cases) = prepare(
@@ -214,7 +214,7 @@ mod tests {
     }
 
     #[test]
-    fn precheck_keeps_only_the_visible_cases() {
+    fn precheck_keeps_only_visible() {
         let (content, courses) = log200("precheck-visible");
         let visible = content.join("log200/exercises/sum/assessment/visible");
         fs::create_dir_all(&visible).unwrap();
@@ -229,7 +229,7 @@ mod tests {
     }
 
     #[test]
-    fn precheck_without_a_visible_case_is_invalid() {
+    fn precheck_needs_a_visible_case() {
         let (content, courses) = log200("precheck-hidden-only");
         let mut job = job("python", "sum", "");
         job.kind = JobKind::Precheck;
@@ -239,7 +239,7 @@ mod tests {
     }
 
     #[test]
-    fn job_submitted_after_closing_is_denied() {
+    fn submitted_after_close_is_denied() {
         let (content, courses) = log200("submitted-after-closing");
         let packs = packs();
         let result = prepare(
@@ -292,7 +292,7 @@ mod tests {
 
     #[tokio::test]
     #[ignore = "needs Docker with runsc"]
-    async fn reference_solution_passes_the_sum_exercise() {
+    async fn reference_passes_sum() {
         let sum = "import sys; print(sum(map(int, sys.stdin.read().split())))";
         let job = job("python", "sum", sum);
         let cases = read_cases(&examples().join("exercises/sum/assessment")).unwrap();

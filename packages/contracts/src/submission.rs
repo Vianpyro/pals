@@ -48,7 +48,7 @@ mod tests {
     }
 
     #[test]
-    fn a_student_asks_for_a_precheck_or_a_check() {
+    fn kind_is_precheck_or_check() {
         assert_eq!(
             submission(Some("precheck")).unwrap().kind,
             RunKind::Precheck
@@ -57,12 +57,12 @@ mod tests {
     }
 
     #[test]
-    fn the_previous_interface_sends_no_kind_and_gets_a_check() {
+    fn missing_kind_is_a_check() {
         assert_eq!(submission(None).unwrap().kind, RunKind::Check);
     }
 
     #[test]
-    fn a_student_cannot_ask_for_a_final_submission() {
+    fn final_cannot_be_requested() {
         assert!(submission(Some("final")).is_err());
     }
 }

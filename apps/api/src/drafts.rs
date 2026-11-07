@@ -137,18 +137,18 @@ mod tests {
     }
 
     #[test]
-    fn the_same_write_one_revision_behind_was_already_applied() {
+    fn same_write_is_a_replay() {
         assert!(replayed(&write(3, "print(1)"), &draft(4, "print(1)")));
     }
 
     #[test]
-    fn another_source_on_that_revision_is_a_conflict() {
+    fn different_write_is_not_a_replay() {
         assert!(!replayed(&write(3, "print(1)"), &draft(4, "print(2)")));
         assert!(!replayed(&write(2, "print(1)"), &draft(4, "print(1)")));
     }
 
     #[test]
-    fn the_last_revision_has_no_next_one() {
+    fn last_revision_has_no_next() {
         assert!(!replayed(&write(u32::MAX, ""), &draft(0, "")));
     }
 }

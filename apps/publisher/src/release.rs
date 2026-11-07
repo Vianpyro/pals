@@ -88,7 +88,7 @@ mod tests {
     }
 
     #[test]
-    fn changed_content_keeps_the_previous_release() {
+    fn changed_content_keeps_previous() {
         let course = temp_dir("release-changed");
         let old = publish(&course, &projection_of("# Somme")).unwrap();
         let new = publish(&course, &projection_of("# Addition")).unwrap();
@@ -98,7 +98,7 @@ mod tests {
     }
 
     #[test]
-    fn interrupted_run_leaves_nothing_in_the_release() {
+    fn interrupted_run_leaves_nothing() {
         let course = temp_dir("release-interrupted");
         let projection = projection_of("# Somme");
         let release = course.join("releases").join(revision(&projection));

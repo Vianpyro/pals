@@ -189,7 +189,7 @@ mod tests {
 
     #[sqlx::test(migrations = "../../db/migrations")]
     #[ignore = "needs PostgreSQL"]
-    async fn jobs_are_claimed_oldest_first_and_once(pool: PgPool) {
+    async fn claimed_oldest_first_once(pool: PgPool) {
         let first = enqueue(&pool).await;
         let second = enqueue(&pool).await;
         assert_eq!(claim_as_judge(&pool).await, Some(first));
@@ -208,7 +208,7 @@ mod tests {
 
     #[sqlx::test(migrations = "../../db/migrations")]
     #[ignore = "needs PostgreSQL"]
-    async fn job_enqueued_without_a_kind_is_a_check(pool: PgPool) {
+    async fn missing_kind_is_a_check(pool: PgPool) {
         enqueue(&pool).await;
         assert_eq!(claimed_kind(&pool).await, JobKind::Check);
     }
@@ -230,7 +230,7 @@ mod tests {
 
     #[sqlx::test(migrations = "../../db/migrations")]
     #[ignore = "needs PostgreSQL"]
-    async fn judge_has_no_direct_access_to_jobs(pool: PgPool) {
+    async fn judge_cannot_touch_jobs(pool: PgPool) {
         enqueue(&pool).await;
         for statement in [
             "SELECT source FROM jobs",
@@ -341,7 +341,7 @@ mod tests {
 
     #[sqlx::test(migrations = "../../db/migrations")]
     #[ignore = "needs PostgreSQL"]
-    async fn running_job_within_its_lease_is_not_reclaimed(pool: PgPool) {
+    async fn leased_job_is_not_reclaimed(pool: PgPool) {
         let job = enqueue(&pool).await;
         assert_eq!(claim_as_judge(&pool).await, Some(job));
         assert_eq!(claim_as_judge(&pool).await, None);
@@ -350,7 +350,7 @@ mod tests {
 
     #[sqlx::test(migrations = "../../db/migrations")]
     #[ignore = "needs PostgreSQL"]
-    async fn abandoned_job_is_reclaimed_before_newer_jobs(pool: PgPool) {
+    async fn abandoned_job_is_reclaimed_first(pool: PgPool) {
         let abandoned = enqueue(&pool).await;
         claim_as_judge(&pool).await;
         let newer = enqueue(&pool).await;
@@ -385,7 +385,7 @@ mod tests {
 
     #[sqlx::test(migrations = "../../db/migrations")]
     #[ignore = "needs PostgreSQL"]
-    async fn a_case_reported_twice_keeps_one_row_the_last(pool: PgPool) {
+    async fn case_reported_twice_keeps_last(pool: PgPool) {
         let job = enqueue(&pool).await;
         claim_as_judge(&pool).await;
         let wrong = CaseReport {
@@ -427,7 +427,7 @@ mod tests {
 
     #[sqlx::test(migrations = "../../db/migrations")]
     #[ignore = "needs PostgreSQL"]
-    async fn judge_has_no_direct_access_to_case_rows(pool: PgPool) {
+    async fn judge_cannot_touch_case_rows(pool: PgPool) {
         let mut transaction = begin_as(&pool, AS_JUDGE).await;
         let error = sqlx::query("SELECT actual FROM job_cases")
             .execute(&mut *transaction)
@@ -449,7 +449,7 @@ mod tests {
 
     #[sqlx::test(migrations = "../../db/migrations")]
     #[ignore = "needs PostgreSQL"]
-    async fn claiming_another_job_leaves_the_cases_of_a_running_one(pool: PgPool) {
+    async fn claiming_keeps_other_jobs_cases(pool: PgPool) {
         let job = enqueue(&pool).await;
         claim_as_judge(&pool).await;
         report_as_judge(&pool, job, &passed_at(0)).await;
@@ -476,7 +476,7 @@ mod tests {
 
     #[sqlx::test(migrations = "../../db/migrations")]
     #[ignore = "needs PostgreSQL"]
-    async fn first_judge_can_still_finish_a_reclaimed_job(pool: PgPool) {
+    async fn reclaimed_job_can_still_finish(pool: PgPool) {
         let job = enqueue(&pool).await;
         claim_as_judge(&pool).await;
         expire(&pool, job).await;

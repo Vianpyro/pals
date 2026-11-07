@@ -61,7 +61,7 @@ mod tests {
 
     #[tokio::test]
     #[ignore = "needs Docker with runsc"]
-    async fn a_check_reports_only_its_visible_cases() {
+    async fn check_reports_only_visible() {
         let mut reported = Vec::new();
         let verdicts = on_sum("reports-visible", JobKind::Check, SUM, async |report| {
             reported.push(report);
@@ -89,7 +89,7 @@ mod tests {
 
     #[tokio::test]
     #[ignore = "needs Docker with runsc"]
-    async fn a_case_is_reported_before_the_next_one_runs() {
+    async fn case_reported_before_next_runs() {
         let slow = "import time; time.sleep(1); print(0)";
         let mut ended = Vec::new();
         on_sum("reports-early", JobKind::Check, slow, async |_| {
@@ -117,7 +117,7 @@ mod tests {
 
     #[tokio::test]
     #[ignore = "needs Docker with runsc"]
-    async fn the_largest_source_accepted_is_judged() {
+    async fn largest_source_is_judged() {
         let code = format!("{SUM}\n{}", "#".repeat(1024 * 1024 - SUM.len() - 1));
         assert_eq!(python_on_sum("large", &code).await, [Verdict::Passed; 5]);
     }

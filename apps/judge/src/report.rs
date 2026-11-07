@@ -56,7 +56,7 @@ mod tests {
     }
 
     #[test]
-    fn an_output_at_the_limit_is_not_truncated() {
+    fn output_at_limit_is_kept() {
         let (text, truncated) = shown(&vec![b'a'; MAX_SHOWN]);
         assert_eq!(text.len(), MAX_SHOWN);
         assert!(!truncated);
@@ -70,7 +70,7 @@ mod tests {
     }
 
     #[test]
-    fn replacing_bytes_cannot_outgrow_the_limit() {
+    fn replacements_stay_within_limit() {
         let (text, truncated) = shown(&vec![0; MAX_SHOWN]);
         assert!(text.len() <= MAX_SHOWN);
         assert!(text.chars().all(|character| character == '\u{FFFD}'));
@@ -78,7 +78,7 @@ mod tests {
     }
 
     #[test]
-    fn a_character_across_the_limit_is_not_split() {
+    fn limit_never_splits_a_character() {
         let mut output = vec![b'a'; MAX_SHOWN - 1];
         output.extend("é".as_bytes());
         let (text, truncated) = shown(&output);
@@ -87,7 +87,7 @@ mod tests {
     }
 
     #[test]
-    fn a_program_that_timed_out_shows_nothing() {
+    fn timed_out_shows_nothing() {
         let report = CaseReport::new(0, Verdict::TimedOut, &Outcome::TimedOut);
         assert_eq!(report.actual, "");
         assert!(!report.truncated);

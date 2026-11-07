@@ -125,7 +125,7 @@ mod tests {
     }
 
     #[test]
-    fn whitespace_and_control_characters_are_invalid() {
+    fn whitespace_and_controls_are_invalid() {
         assert_all_invalid(&["\0", "\n", "\r", "\t", "foo\0", "foo\n", " foo"]);
     }
 

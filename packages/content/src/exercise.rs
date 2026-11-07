@@ -36,7 +36,7 @@ mod tests {
     }
 
     #[test]
-    fn known_exercise_resolves_to_its_directory() {
+    fn known_exercise_resolves() {
         let release = release_named("exercise-known");
         let dir = release.join("exercises").join("sum");
         fs::create_dir_all(&dir).unwrap();

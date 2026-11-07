@@ -69,7 +69,7 @@ mod tests {
     }
 
     #[test]
-    fn directory_beside_a_statement_is_refused() {
+    fn directory_beside_is_refused() {
         let exercise = exercise_with("statement-dir", &["statement.typ"]);
         fs::create_dir(exercise.join("statement.md")).unwrap();
         assert_invalid(statement(&exercise));
@@ -85,7 +85,7 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
-    fn symbolic_link_beside_a_statement_is_refused() {
+    fn symbolic_link_beside_is_refused() {
         let exercise = exercise_with("statement-link-beside", &["statement.typ"]);
         std::os::unix::fs::symlink("/etc/passwd", exercise.join("statement.md")).unwrap();
         assert_invalid(statement(&exercise));

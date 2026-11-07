@@ -114,7 +114,7 @@ mod tests {
     }
 
     #[test]
-    fn visible_cases_come_first_each_kind_in_name_order() {
+    fn visible_first_then_by_name() {
         let dir = assessment(
             "ordered",
             &[
@@ -138,7 +138,7 @@ mod tests {
     }
 
     #[test]
-    fn example_exercise_has_two_visible_and_three_hidden_cases() {
+    fn example_has_2_visible_3_hidden() {
         let dir = Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../../examples/content/exercises/sum/assessment");
         let kinds: Vec<Visibility> = read_cases(&dir)
@@ -159,7 +159,7 @@ mod tests {
     }
 
     #[test]
-    fn case_outside_visible_and_hidden_is_invalid() {
+    fn stray_case_is_invalid() {
         let dir = assessment(
             "outside",
             &[

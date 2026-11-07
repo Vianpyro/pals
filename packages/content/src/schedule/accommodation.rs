@@ -41,7 +41,7 @@ mod tests {
     use crate::schedule::fixtures::{between, since};
 
     #[test]
-    fn fixed_extra_time_only_moves_the_closing() {
+    fn fixed_time_moves_only_closing() {
         let accommodation = Accommodation {
             extra_time: ExtraTime::Fixed(Duration::from_mins(1)),
             start_shift: Duration::ZERO,
@@ -50,7 +50,7 @@ mod tests {
     }
 
     #[test]
-    fn percent_uses_the_length_before_the_shift() {
+    fn percent_uses_unshifted_length() {
         let accommodation = Accommodation {
             extra_time: ExtraTime::Percent(10),
             start_shift: Duration::from_secs(30),

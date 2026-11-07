@@ -36,7 +36,7 @@ mod tests {
     }
 
     #[test]
-    fn only_the_visible_cases_of_a_test_run_are_reported() {
+    fn test_run_reports_only_visible() {
         for kind in [JobKind::Precheck, JobKind::Check] {
             assert!(kind.reports(Visible));
             assert!(!kind.reports(Hidden));

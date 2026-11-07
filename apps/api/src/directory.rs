@@ -130,7 +130,7 @@ mod tests {
     }
 
     #[test]
-    fn wrong_password_is_refused_by_its_code() {
+    fn credentials_code_is_refused() {
         assert_eq!(
             password_verdict(INVALID_CREDENTIALS),
             Err(SignInError::Refused)
@@ -147,7 +147,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn empty_password_is_refused_before_any_bind() {
+    async fn empty_password_never_binds() {
         assert_eq!(
             Directory::unreachable().sign_in("etudiant1", "").await,
             Err(SignInError::Refused)

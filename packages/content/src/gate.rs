@@ -47,7 +47,7 @@ mod tests {
     }
 
     #[test]
-    fn open_exercise_resolves_to_its_directory() {
+    fn open_exercise_resolves() {
         let course = course_with_sum("gate-open");
         let schedule = Schedule {
             offering: Some(Window {

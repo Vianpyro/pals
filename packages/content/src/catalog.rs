@@ -72,7 +72,7 @@ mod tests {
     }
 
     #[test]
-    fn what_the_gate_would_refuse_if_not_listed() {
+    fn gate_refusals_are_not_listed() {
         let course = course_with_release("catalog-refused");
         add_exercise(&course, "sum");
         add_exercise(&course, "Not_An_Id");

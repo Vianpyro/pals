@@ -38,7 +38,7 @@ mod tests {
     use time::macros::datetime;
 
     #[test]
-    fn only_a_judged_run_says_whether_it_passed() {
+    fn only_done_says_passed() {
         assert_eq!(
             serde_json::to_value(RunStatus::Done { passed: true }).unwrap(),
             json!({"state": "done", "passed": true})
@@ -50,7 +50,7 @@ mod tests {
     }
 
     #[test]
-    fn a_run_carries_its_status_beside_its_id() {
+    fn run_flattens_its_status() {
         let run = Run {
             id: Uuid::nil(),
             kind: RunKind::Precheck,

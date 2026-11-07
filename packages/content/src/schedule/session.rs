@@ -30,7 +30,7 @@ mod tests {
     }
 
     #[test]
-    fn closes_at_the_last_accommodated_window() {
+    fn closes_at_last_window() {
         let accommodated = Schedule {
             accommodation: Some(Accommodation {
                 extra_time: ExtraTime::Percent(50),
@@ -46,7 +46,7 @@ mod tests {
     }
 
     #[test]
-    fn student_without_a_window_does_not_count() {
+    fn student_without_window_is_ignored() {
         assert_eq!(
             session_closes_at(&[Schedule::default(), group_student()]),
             Some(at(200))
@@ -60,7 +60,7 @@ mod tests {
     }
 
     #[test]
-    fn window_without_closing_keeps_the_session_open() {
+    fn unbounded_window_keeps_it_open() {
         let practice = Schedule {
             group: Some(since(100)),
             ..Default::default()

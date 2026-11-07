@@ -218,7 +218,7 @@ mod tests {
 
     #[tokio::test]
     #[ignore = "needs Docker with runsc"]
-    async fn endless_command_is_stopped_and_removed() {
+    async fn endless_command_is_cleaned_up() {
         let outcome = python("endless", "while True: pass", b"", DEADLINE).await;
         assert_matches!(outcome, Outcome::TimedOut);
         let inspect = Command::new("docker")

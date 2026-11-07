@@ -79,7 +79,7 @@ mod tests {
     }
 
     #[test]
-    fn offering_applies_without_group_window() {
+    fn offering_applies_without_group() {
         let schedule = Schedule {
             offering: window(0, 10),
             ..Default::default()
@@ -97,7 +97,7 @@ mod tests {
     }
 
     #[test]
-    fn accommodation_follows_the_group_window() {
+    fn accommodation_follows_group() {
         let schedule = Schedule {
             group: window(100, 200),
             accommodation: half_more_time(),
@@ -109,7 +109,7 @@ mod tests {
     }
 
     #[test]
-    fn accommodation_ignored_when_the_mode_does_not_apply_it() {
+    fn mode_can_ignore_accommodation() {
         let schedule = Schedule {
             group: window(100, 200),
             accommodation: half_more_time(),
@@ -119,7 +119,7 @@ mod tests {
     }
 
     #[test]
-    fn accommodation_combines_with_extension() {
+    fn accommodation_adds_to_extension() {
         let schedule = Schedule {
             extension: window(300, 400),
             group: window(100, 200),
@@ -146,7 +146,7 @@ mod tests {
     }
 
     #[test]
-    fn empty_window_stays_closed_with_fixed_extra_time() {
+    fn extra_time_cannot_open_empty_window() {
         let schedule = Schedule {
             group: window(100, 100),
             accommodation: Some(Accommodation {

@@ -77,7 +77,7 @@ mod tests {
     }
 
     #[test]
-    fn every_pack_is_read_under_its_directory_name() {
+    fn packs_are_named_by_directory() {
         let packs = read_packs(&languages("ok", &[("python", PY), ("other", OTHER)])).unwrap();
         assert_eq!(packs.len(), 2);
         let python = &packs[&id("python")];
@@ -111,7 +111,7 @@ mod tests {
     }
 
     #[test]
-    fn a_directory_without_pack_toml_is_named() {
+    fn missing_pack_toml_is_named() {
         let dir = languages("missing", &[]);
         fs::create_dir(dir.join("java")).unwrap();
         let error = read_packs(&dir).unwrap_err();
@@ -120,7 +120,7 @@ mod tests {
     }
 
     #[test]
-    fn a_directory_name_no_job_could_ask_for_is_refused() {
+    fn invalid_directory_name_is_refused() {
         let error = read_packs(&languages("not-an-id", &[("not an id", PY)])).unwrap_err();
         assert_eq!(error.kind(), io::ErrorKind::InvalidData);
         assert!(error.to_string().contains("not an identifier"));
@@ -141,7 +141,7 @@ mod tests {
     }
 
     #[test]
-    fn a_source_outside_the_directory_is_refused() {
+    fn source_escape_is_refused() {
         assert_refused(
             "traversal",
             "python",

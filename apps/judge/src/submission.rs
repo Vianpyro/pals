@@ -66,7 +66,7 @@ mod tests {
     }
 
     #[test]
-    fn the_code_is_saved_under_the_packs_file_name() {
+    fn code_uses_the_packs_file_name() {
         let submission = write("saved", "print(1)");
         assert_eq!(
             fs::read_to_string(submission.dir().join("main.py")).unwrap(),
@@ -105,7 +105,7 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
-    fn the_sandboxs_user_can_read_whatever_the_umask() {
+    fn sandbox_can_read_any_umask() {
         use std::os::unix::fs::PermissionsExt;
         let submission = write("mode", "");
         let mode = |path: &Path| fs::metadata(path).unwrap().permissions().mode() & 0o777;
