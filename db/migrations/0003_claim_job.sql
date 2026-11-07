@@ -17,6 +17,10 @@ BEGIN ATOMIC
     UPDATE public.jobs SET state = 'failed', finished_at = now()
     WHERE jobs.state = 'running' AND jobs.claimed_at < now() - interval '2 minutes' AND jobs.claims >= 3;
 
+    -- A reclaimed job reports its cases again (ADR-0030)
+    DELETE FROM public.job_cases USING public.jobs
+    WHERE job_cases.job = jobs.id AND jobs.state = 'running' AND jobs.claimed_at < now() - interval '2 minutes';
+
     UPDATE public.jobs SET state = 'waiting', claimed_at = NULL
     WHERE jobs.state = 'running' AND jobs.claimed_at < now() - interval '2 minutes';
 

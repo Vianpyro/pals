@@ -2,7 +2,7 @@
 
 use std::{fs, path::Path, time::Duration};
 
-use judge::{Verdict, judge_cases, read_cases, read_packs};
+use judge::{JobKind, Verdict, judge_cases, read_cases, read_packs};
 
 const TIMEOUT: Duration = Duration::from_secs(10);
 
@@ -39,9 +39,17 @@ async fn every_pack_gives_the_expected_verdict() {
             for path in sources {
                 let source = fs::read_to_string(&path).unwrap();
                 let name = format!("judge-conformance-{}-{folder}", id.as_str());
-                let verdicts = judge_cases(&name, &pack, &source, cases, TIMEOUT)
-                    .await
-                    .unwrap();
+                let verdicts = judge_cases(
+                    &name,
+                    JobKind::Final,
+                    &pack,
+                    &source,
+                    cases,
+                    TIMEOUT,
+                    async |_| Ok(()),
+                )
+                .await
+                .unwrap();
 
                 assert_eq!(verdicts, vec![expected; cases.len()], "{}", path.display());
             }

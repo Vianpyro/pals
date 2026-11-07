@@ -1,0 +1,39 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT report_case($1, $2, $3, $4, $5) AS \"reported!\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "reported!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int4",
+        {
+          "Custom": {
+            "name": "case_verdict",
+            "kind": {
+              "Enum": [
+                "passed",
+                "wrong-answer",
+                "crashed",
+                "timed-out"
+              ]
+            }
+          }
+        },
+        "Text",
+        "Bool"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "f9d2a3134a586cda9852f66f7cbbb718bc67e30ea3e1f9e357122a665f5af09d"
+}

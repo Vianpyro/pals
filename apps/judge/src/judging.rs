@@ -2,22 +2,28 @@
 
 use std::{io, time::Duration};
 
-use crate::{Case, Pack, Submission, Verdict, case_verdict, run_in_sandbox};
+use crate::{Case, CaseReport, JobKind, Pack, Submission, Verdict, case_verdict, run_in_sandbox};
 
 // One case at a time; concurrent sandboxes once V-0013 measures how many a judge holds
 pub async fn judge_cases(
     name: &str,
+    kind: JobKind,
     pack: &Pack,
     source: &str,
     cases: &[Case],
     timeout: Duration,
+    mut report: impl AsyncFnMut(CaseReport) -> io::Result<()>,
 ) -> io::Result<Vec<Verdict>> {
     let submission = Submission::write(name, &pack.source, source)?;
     let mut verdicts = Vec::with_capacity(cases.len());
-    for (index, case) in cases.iter().enumerate() {
-        let container = format!("{name}-{index}");
+    for (position, case) in (0..).zip(cases) {
+        let container = format!("{name}-{position}");
         let outcome = run_in_sandbox(&container, pack, &submission, &case.input, timeout).await?;
-        verdicts.push(case_verdict(&outcome, &case.expected));
+        let verdict = case_verdict(&outcome, &case.expected);
+        if kind.reports(case.visibility) {
+            report(CaseReport::new(position, verdict, &outcome)).await?;
+        }
+        verdicts.push(verdict)
     }
     Ok(verdicts)
 }
@@ -26,22 +32,72 @@ pub async fn judge_cases(
 mod tests {
     use super::*;
     use crate::{read_cases, read_packs};
-    use std::{env, path::Path};
+    use std::{env, path::Path, time::Instant};
 
     const TIMEOUT: Duration = Duration::from_mins(1);
     const SUM: &str = "import sys; print(sum(map(int, sys.stdin.read().split())))";
 
-    async fn python_on_sum(name: &str, code: &str) -> Vec<Verdict> {
+    async fn on_sum(
+        name: &str,
+        kind: JobKind,
+        code: &str,
+        report: impl AsyncFnMut(CaseReport) -> io::Result<()>,
+    ) -> Vec<Verdict> {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
         let cases = read_cases(&root.join("examples/content/exercises/sum/assessment")).unwrap();
         let packs = read_packs(&root.join("packs/languages")).unwrap();
         let python = &packs[&"python".parse().unwrap()];
         let name = format!("judge-test-{name}");
-        let verdicts = judge_cases(&name, python, code, &cases, TIMEOUT)
+        let verdicts = judge_cases(&name, kind, python, code, &cases, TIMEOUT, report)
             .await
             .unwrap();
         assert!(!env::temp_dir().join(&name).exists(), "code left behind");
         verdicts
+    }
+
+    async fn python_on_sum(name: &str, code: &str) -> Vec<Verdict> {
+        on_sum(name, JobKind::Check, code, async |_| Ok(())).await
+    }
+
+    #[tokio::test]
+    #[ignore = "needs Docker with runsc"]
+    async fn a_check_reports_only_its_visible_cases() {
+        let mut reported = Vec::new();
+        let verdicts = on_sum("reports-visible", JobKind::Check, SUM, async |report| {
+            reported.push(report);
+            Ok(())
+        })
+        .await;
+        assert_eq!(verdicts, [Verdict::Passed; 5]);
+        let positions: Vec<i32> = reported.iter().map(|report| report.position).collect();
+        assert_eq!(positions, [0, 1]);
+        assert!(reported.iter().all(|report| !report.actual.is_empty()));
+    }
+
+    #[tokio::test]
+    #[ignore = "needs Docker with runsc"]
+    async fn a_final_job_reports_no_case() {
+        let mut reported = 0;
+        let verdicts = on_sum("reports-nothing", JobKind::Final, SUM, async |_| {
+            reported += 1;
+            Ok(())
+        })
+        .await;
+        assert_eq!(verdicts, [Verdict::Passed; 5]);
+        assert_eq!(reported, 0);
+    }
+
+    #[tokio::test]
+    #[ignore = "needs Docker with runsc"]
+    async fn a_case_is_reported_before_the_next_one_runs() {
+        let slow = "import time; time.sleep(1); print(0)";
+        let mut ended = Vec::new();
+        on_sum("reports-early", JobKind::Check, slow, async |_| {
+            ended.push(Instant::now());
+            Ok(())
+        })
+        .await;
+        assert!(ended[1] - ended[0] >= Duration::from_secs(1));
     }
 
     #[tokio::test]

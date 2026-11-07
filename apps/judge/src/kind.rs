@@ -17,6 +17,11 @@ impl JobKind {
             Self::Check | Self::Final => true,
         }
     }
+
+    /// A hidden case is never reported, and nobody waits for a final job (ADR-0030)
+    pub fn reports(self, visibility: Visibility) -> bool {
+        self != Self::Final && visibility == Visibility::Visible
+    }
 }
 
 #[cfg(test)]
@@ -28,6 +33,20 @@ mod tests {
     fn precheck_runs_only_visible_cases() {
         assert!(JobKind::Precheck.runs(Visible));
         assert!(!JobKind::Precheck.runs(Hidden));
+    }
+
+    #[test]
+    fn only_the_visible_cases_of_a_test_run_are_reported() {
+        for kind in [JobKind::Precheck, JobKind::Check] {
+            assert!(kind.reports(Visible));
+            assert!(!kind.reports(Hidden));
+        }
+    }
+
+    #[test]
+    fn a_final_job_reports_nothing() {
+        assert!(!JobKind::Final.reports(Visible));
+        assert!(!JobKind::Final.reports(Hidden));
     }
 
     #[test]

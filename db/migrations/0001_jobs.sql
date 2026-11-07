@@ -14,6 +14,13 @@ CREATE TYPE job_kind AS ENUM (
     'final'
 );
 
+CREATE TYPE case_verdict AS ENUM (
+    'passed',
+    'wrong-answer',
+    'crashed',
+    'timed-out'
+);
+
 CREATE DOMAIN identifier AS text CHECK (value ~ '^[a-z0-9-]+$');
 
 CREATE TABLE jobs (
@@ -37,6 +44,16 @@ CREATE TABLE jobs (
     CONSTRAINT jobs_result_when_done CHECK ((result IS NOT NULL) = (state = 'done')),
     CONSTRAINT jobs_claimed_after_enqueued CHECK (claimed_at >= enqueued_at),
     CONSTRAINT jobs_finished_after_start CHECK (finished_at >= coalesce(claimed_at, enqueued_at))
+);
+
+CREATE TABLE job_cases (
+    job uuid NOT NULL REFERENCES jobs ON DELETE CASCADE,
+    position integer NOT NULL CHECK (position >= 0),
+    verdict case_verdict NOT NULL,
+    actual text NOT NULL CHECK (octet_length(actual) <= 64 * 1024), -- (ADR-0042)
+    truncated boolean NOT NULL,
+
+    PRIMARY KEY (job, position)
 );
 
 CREATE INDEX jobs_waiting_idx ON jobs (enqueued_at, id) WHERE state = 'waiting';

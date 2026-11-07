@@ -5,7 +5,7 @@ use sqlx::{
     types::{Uuid, time::OffsetDateTime},
 };
 
-use crate::{JobKind, Verdict};
+use crate::{CaseReport, JobKind, Verdict};
 
 #[derive(Debug)]
 pub struct Job {
@@ -49,6 +49,23 @@ pub async fn finish(
         r#"SELECT finish_job($1, $2) AS "finished!""#,
         job,
         verdicts as &[Verdict]
+    )
+    .fetch_one(connection)
+    .await
+}
+
+pub async fn report_case(
+    connection: &mut PgConnection,
+    job: Uuid,
+    report: &CaseReport,
+) -> sqlx::Result<bool> {
+    sqlx::query_scalar!(
+        r#"SELECT report_case($1, $2, $3, $4, $5) AS "reported!""#,
+        job,
+        report.position,
+        report.verdict as Verdict,
+        report.actual,
+        report.truncated
     )
     .fetch_one(connection)
     .await
@@ -130,6 +147,32 @@ mod tests {
             .fetch_one(pool)
             .await
             .unwrap()
+    }
+
+    fn passed_at(position: i32) -> CaseReport {
+        CaseReport {
+            position,
+            verdict: Verdict::Passed,
+            actual: "3\n".to_string(),
+            truncated: false,
+        }
+    }
+
+    async fn report_as_judge(pool: &PgPool, job: Uuid, report: &CaseReport) -> bool {
+        let mut transaction = begin_as(pool, AS_JUDGE).await;
+        let reported = report_case(&mut transaction, job, report).await.unwrap();
+        transaction.commit().await.unwrap();
+        reported
+    }
+
+    async fn reported_cases(pool: &PgPool, job: Uuid) -> Vec<(i32, String)> {
+        sqlx::query_as(
+            "SELECT position, verdict::text FROM job_cases WHERE job = $1 ORDER BY position",
+        )
+        .bind(job)
+        .fetch_all(pool)
+        .await
+        .unwrap()
     }
 
     #[track_caller]
@@ -326,6 +369,109 @@ mod tests {
         }
         assert_eq!(claim_as_judge(&pool).await, None);
         assert_eq!(state_and_result(&pool, job).await, ("failed".into(), None));
+    }
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL"]
+    async fn running_job_reports_its_cases(pool: PgPool) {
+        let job = enqueue(&pool).await;
+        claim_as_judge(&pool).await;
+        assert!(report_as_judge(&pool, job, &passed_at(0)).await);
+        assert!(report_as_judge(&pool, job, &passed_at(1)).await);
+        assert_eq!(
+            reported_cases(&pool, job).await,
+            [(0, "passed".to_string()), (1, "passed".to_string())]
+        );
+    }
+
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL"]
+    async fn a_case_reported_twice_keeps_one_row_the_last(pool: PgPool) {
+        let job = enqueue(&pool).await;
+        claim_as_judge(&pool).await;
+        let wrong = CaseReport {
+            verdict: Verdict::WrongAnswer,
+            ..passed_at(0)
+        };
+        assert!(report_as_judge(&pool, job, &wrong).await);
+        assert!(report_as_judge(&pool, job, &passed_at(0)).await);
+        assert_eq!(
+            reported_cases(&pool, job).await,
+            [(0, "passed".to_string())]
+        );
+    }
+
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL"]
+    async fn only_a_running_job_reports(pool: PgPool) {
+        let job = enqueue(&pool).await;
+        assert!(!report_as_judge(&pool, job, &passed_at(0)).await);
+
+        claim_as_judge(&pool).await;
+        assert!(finish_as_judge(&pool, job, &[Verdict::Passed]).await);
+        assert!(!report_as_judge(&pool, job, &passed_at(0)).await);
+
+        assert_eq!(reported_cases(&pool, job).await, []);
+    }
+
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL"]
+    async fn only_the_judge_can_report(pool: PgPool) {
+        let job = enqueue(&pool).await;
+        claim_as_judge(&pool).await;
+        let mut transaction = begin_as(&pool, AS_API).await;
+        let error = report_case(&mut transaction, job, &passed_at(0))
+            .await
+            .unwrap_err();
+        assert_denied(&error);
+    }
+
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL"]
+    async fn judge_has_no_direct_access_to_case_rows(pool: PgPool) {
+        let mut transaction = begin_as(&pool, AS_JUDGE).await;
+        let error = sqlx::query("SELECT actual FROM job_cases")
+            .execute(&mut *transaction)
+            .await
+            .unwrap_err();
+        assert_denied(&error);
+    }
+
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL"]
+    async fn reclaimed_job_loses_its_cases(pool: PgPool) {
+        let job = enqueue(&pool).await;
+        claim_as_judge(&pool).await;
+        report_as_judge(&pool, job, &passed_at(0)).await;
+        expire(&pool, job).await;
+        assert_eq!(claim_as_judge(&pool).await, Some(job));
+        assert_eq!(reported_cases(&pool, job).await, []);
+    }
+
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL"]
+    async fn claiming_another_job_leaves_the_cases_of_a_running_one(pool: PgPool) {
+        let job = enqueue(&pool).await;
+        claim_as_judge(&pool).await;
+        report_as_judge(&pool, job, &passed_at(0)).await;
+        claim_as_judge(&pool).await;
+        assert_eq!(
+            reported_cases(&pool, job).await,
+            [(0, "passed".to_string())]
+        );
+    }
+
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL"]
+    async fn a_case_is_deleted_with_its_job(pool: PgPool) {
+        let job = enqueue(&pool).await;
+        claim_as_judge(&pool).await;
+        report_as_judge(&pool, job, &passed_at(0)).await;
+        sqlx::query("DELETE FROM jobs WHERE id = $1")
+            .bind(job)
+            .execute(&pool)
+            .await
+            .unwrap();
+        assert_eq!(reported_cases(&pool, job).await, []);
     }
 
     #[sqlx::test(migrations = "../../db/migrations")]

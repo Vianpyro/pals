@@ -5,8 +5,8 @@ use std::{collections::HashMap, env, error::Error, future, io, path::Path, time:
 use content::{Schedule, accessible_exercise};
 use contracts::Id;
 use judge::{
-    Case, Job, Pack, Verdict, claim, fail, finish, judge_cases, read_cases, read_packs,
-    read_schedule,
+    Case, CaseReport, Job, Pack, Verdict, claim, fail, finish, judge_cases, read_cases, read_packs,
+    read_schedule, report_case,
 };
 use sqlx::{Connection, PgConnection};
 use tokio::time;
@@ -53,7 +53,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
             };
 
         // A sandbox failure stops the judge rather than failing every job it claims
-        let verdicts = judge(&job, pack, &cases).await?;
+        let verdicts = judge(&job, pack, &cases, async |report| {
+            report_case(&mut connection, job.id, &report)
+                .await
+                .map_err(io::Error::other)?;
+            Ok(())
+        })
+        .await?;
         if !finish(&mut connection, job.id, &verdicts).await? {
             eprintln!("judge: job {} was no longer running", job.id);
         }
@@ -118,9 +124,14 @@ fn id(value: &str) -> io::Result<Id> {
         .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))
 }
 
-async fn judge(job: &Job, pack: &Pack, cases: &[Case]) -> io::Result<Vec<Verdict>> {
+async fn judge(
+    job: &Job,
+    pack: &Pack,
+    cases: &[Case],
+    report: impl AsyncFnMut(CaseReport) -> io::Result<()>,
+) -> io::Result<Vec<Verdict>> {
     let name = format!("judge-{}", job.id);
-    judge_cases(&name, pack, &job.source, cases, TIMEOUT).await
+    judge_cases(&name, job.kind, pack, &job.source, cases, TIMEOUT, report).await
 }
 
 #[cfg(test)]
@@ -285,9 +296,11 @@ mod tests {
         let sum = "import sys; print(sum(map(int, sys.stdin.read().split())))";
         let job = job("python", "sum", sum);
         let cases = read_cases(&examples().join("exercises/sum/assessment")).unwrap();
-        let verdicts = judge(&job, &packs()[&id("python").unwrap()], &cases)
-            .await
-            .unwrap();
+        let verdicts = judge(&job, &packs()[&id("python").unwrap()], &cases, async |_| {
+            Ok(())
+        })
+        .await
+        .unwrap();
         assert_eq!(verdicts, [Verdict::Passed; 5]);
     }
 }
