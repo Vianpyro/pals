@@ -26,7 +26,7 @@ BEGIN ATOMIC
         FROM public.jobs
         WHERE jobs.id = report_case.job AND jobs.state = 'running'
         ON CONFLICT ON CONSTRAINT job_cases_pkey DO UPDATE
-        SET verdict = EXCLUDED.verdict, actual = EXCLUDED.verdict, truncated = EXCLUDED.truncated
+        SET verdict = EXCLUDED.verdict, actual = EXCLUDED.actual, truncated = EXCLUDED.truncated
         RETURNING 1
     )
     SELECT count(*) = 1 FROM reported;
