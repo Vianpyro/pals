@@ -118,4 +118,5 @@ jobs:
         if: hashFiles('infrastructure/ansible/**/*.yml') != ''
         run: |
           pip install -r .devcontainer/requirements.txt
+          ansible-galaxy collection install -r infrastructure/ansible/requirements.yml
           ansible-lint infrastructure/ansible

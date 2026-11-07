@@ -1,7 +1,42 @@
 ---
+# The whole platform, from an operator's machine on the ÉTS VPN (ADR-0006, ADR-0010):
+#   ansible-playbook -i inventory/ets site.yml
+# Rerunning it changes nothing. The plays run in this order on purpose: the database before
+# the API migrates it, and the migration before a judge built for the new schema starts.
+
+- name: The operator's machine verifies the images and publishes the courses
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  roles:
+    - artifacts
+
+- name: Every VM gets the base system and its firewall
+  hosts: all
+  become: true
+  roles:
+    - common
+
+- name: Database hosts keep the queue and every record
+  hosts: db
+  become: true
+  roles:
+    - postgresql
+
+- name: Web hosts serve the page and run the API
+  hosts: web
+  become: true
+  roles:
+    - nginx
+    - content
+    - api
+
 - name: Judge hosts run submissions in gVisor
   hosts: judge
   become: true
   roles:
     - docker
     - gvisor
+    # Before content, which gives its hidden tests to the judge's group
+    - judge
+    - content

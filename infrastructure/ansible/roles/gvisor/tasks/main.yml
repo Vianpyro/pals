@@ -1,8 +1,4 @@
 ---
-- name: Install the deb822 support of Ansible
-  ansible.builtin.apt:
-    name: python3-debian
-
 - name: Add the gVisor repository
   ansible.builtin.deb822_repository:
     name: gvisor
