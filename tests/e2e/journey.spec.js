@@ -30,6 +30,15 @@ test("a wrong password is refused", async ({ page, student }) => {
     await expect(page.getByRole("button", { name: "Se connecter" })).toBeVisible();
 });
 
+test("an account without a role in the course is told so", async ({ page }) => {
+    await page.goto("/");
+    // Signs in, but demo.sh leaves it off the course's roster
+    await page.getByLabel("Identifiant").fill("admin1");
+    await page.getByLabel("Mot de passe").fill("log791-dev");
+    await page.getByRole("button", { name: "Se connecter" }).click();
+    await expect(page.getByRole("status")).toHaveText("Vous n'êtes pas inscrit à ce cours.");
+});
+
 test("a correct program passes and is listed first in the history", async ({ page, student }) => {
     test.slow(); // the judge runs every case in a sandbox
     // The verdict comes over the event stream, through nginx: nothing polls the run

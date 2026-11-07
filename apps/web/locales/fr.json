@@ -13,6 +13,7 @@
 
   "catalog.title": "Exercices",
   "catalog.unknownCourse": "Ce cours n'existe pas.",
+  "catalog.notEnrolled": "Vous n'êtes pas inscrit à ce cours.",
   "catalog.empty": "Aucun exercice publié pour l'instant.",
   "catalog.until": "jusqu'au {at, date, long} à {at, time, short}",
   "catalog.opensOn": "ouvre le {at, date, long} à {at, time, short}",

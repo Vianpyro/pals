@@ -47,7 +47,7 @@
         const outcome = await catalog(course);
         if (!outcome.ok) {
             if (isSignedOut(outcome.failure)) view = "sign-in";
-            else say(failureText(t, outcome.failure, { 404: "catalog.unknownCourse" }));
+            else say(failureText(t, outcome.failure, { 403: "catalog.notEnrolled", 404: "catalog.unknownCourse" }));
             return;
         }
         entries = outcome.value;
