@@ -1046,8 +1046,8 @@ mod tests {
                 StatusCode::OK,
                 format!(
                     concat!(
-                        r#"[{{"id":"{newer}","state":"waiting","enqueued_at":"2026-01-01T09:00:00Z"}},"#,
-                        r#"{{"id":"{older}","state":"done","passed":false,"enqueued_at":"2026-01-01T08:00:00Z"}}]"#
+                        r#"[{{"id":"{newer}","kind":"check","state":"waiting","enqueued_at":"2026-01-01T09:00:00Z"}},"#,
+                        r#"{{"id":"{older}","kind":"check","state":"done","passed":false,"enqueued_at":"2026-01-01T08:00:00Z"}}]"#
                     ),
                     newer = newer,
                     older = older
@@ -1065,6 +1065,39 @@ mod tests {
             get_history(&pool, &signed_in(&pool).await).await,
             (StatusCode::OK, "[]".to_string())
         );
+    }
+
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL"]
+    async fn history_says_which_kind_each_run_is(pool: PgPool) {
+        let body = r#"{"course": "log200", "exercise": "sum", "language_pack": "python", "source": "print(0)", "kind": "precheck"}"#;
+        let courses = open_sum(&pool, "history-kind").await;
+        let cookie = signed_in(&pool).await;
+        assert_eq!(
+            post_submission(&pool, courses, &cookie, body).await,
+            StatusCode::ACCEPTED
+        );
+
+        let (status, history) = get_history(&pool, &cookie).await;
+
+        assert_eq!(status, StatusCode::OK);
+        assert!(history.contains(r#""kind":"precheck""#), "{history}");
+    }
+
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL"]
+    async fn a_final_submission_is_not_a_run(pool: PgPool) {
+        let cookie = signed_in(&pool).await;
+        let id = enqueue(&pool).await;
+        sqlx::query("UPDATE jobs SET kind = 'final' WHERE id = $1")
+            .bind(id)
+            .execute(&pool)
+            .await
+            .unwrap();
+
+        let (status, _) = get_submission(&pool, &cookie, &id.to_string()).await;
+        assert_eq!(status, StatusCode::NOT_FOUND);
+        assert_eq!(get_history(&pool, &cookie).await.1, "[]");
     }
 
     #[sqlx::test(migrations = "../../db/migrations")]
@@ -1087,13 +1120,13 @@ mod tests {
         assert_eq!(
             events.next().await,
             Some(format!(
-                r#"{{"id":"{product}","state":"waiting","enqueued_at":"2026-01-01T08:00:00Z"}}"#
+                r#"{{"id":"{product}","kind":"check","state":"waiting","enqueued_at":"2026-01-01T08:00:00Z"}}"#
             ))
         );
         assert_eq!(
             events.next().await,
             Some(format!(
-                r#"{{"id":"{newer}","state":"waiting","enqueued_at":"2026-01-01T09:00:00Z"}}"#
+                r#"{{"id":"{newer}","kind":"check","state":"waiting","enqueued_at":"2026-01-01T09:00:00Z"}}"#
             ))
         );
         assert_eq!(events.next().await, None);
@@ -1107,20 +1140,18 @@ mod tests {
 
         let mine = enqueue(&pool).await;
         let next = events.next().await.unwrap();
-        assert!(
-            next.contains(&format!(r#""id":"{mine}","state":"waiting""#)),
-            "{next}"
-        );
+        assert!(next.contains(&format!(
+            r#""id":"{mine}","kind":"check","state":"waiting""#
+        )));
 
         judge(&pool, mine, "{passed}").await;
         let mut next = events.next().await.unwrap();
         while next.contains(r#""state":"running""#) {
             next = events.next().await.unwrap();
         }
-        assert!(
-            next.contains(&format!(r#""id":"{mine}","state":"done","passed":true"#)),
-            "{next}"
-        );
+        assert!(next.contains(&format!(
+            r#""id":"{mine}","kind":"check","state":"done","passed":true"#
+        )));
 
         enqueue_at(&pool, "etudiant2", "sum", "2026-01-01T08:00:00Z").await;
         let second = enqueue_at(&pool, "etudiant1", "product", "2026-01-01T08:00:00Z").await;

@@ -23,7 +23,7 @@ export function createRuns(records: Records, runCase: RunCase, newId: () => stri
     const stored = () => records.read<StoredRun[]>("runs") ?? [];
 
     function current({ run }: StoredRun): Run {
-        return unjudged(run) && !judging.has(run.id) ? { id: run.id, enqueued_at: run.enqueued_at, state: "failed" } : run;
+        return unjudged(run) && !judging.has(run.id) ? { id: run.id, kind: run.kind, enqueued_at: run.enqueued_at, state: "failed" } : run;
     }
 
     function publish(next: StoredRun) {
@@ -33,7 +33,7 @@ export function createRuns(records: Records, runCase: RunCase, newId: () => stri
     }
 
     function advance(from: StoredRun, status: RunStatus): StoredRun {
-        const next = { ...from, run: { id: from.run.id, enqueued_at: from.run.enqueued_at, ...status } };
+        const next = { ...from, run: { id: from.run.id, kind: from.run.kind, enqueued_at: from.run.enqueued_at, ...status } };
         publish(next);
         return next;
     }
@@ -53,7 +53,7 @@ export function createRuns(records: Records, runCase: RunCase, newId: () => stri
     return {
         /** Queues a run and returns its id. One worker, one program at a time; judge() catches what a run can throw. */
         start(owner: Owner, cases: readonly Case[], source: string): string {
-            const run: Run = { id: newId(), enqueued_at: new Date().toISOString(), state: "waiting" };
+            const run: Run = { id: newId(), kind: "check", enqueued_at: new Date().toISOString(), state: "waiting" };
             const waiting = { ...owner, run };
             judging.add(run.id);
             publish(waiting);

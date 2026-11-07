@@ -17,3 +17,12 @@ impl From<RunKind> for JobKind {
         }
     }
 }
+
+impl From<JobKind> for RunKind {
+    fn from(kind: JobKind) -> Self {
+        match kind {
+            JobKind::Precheck => Self::Precheck,
+            JobKind::Check => Self::Check,
+        }
+    }
+}

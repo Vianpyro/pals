@@ -1,5 +1,6 @@
 //! A run as its author sees it, live or in their history (ADR-0030)
 
+use crate::RunKind;
 use serde::Serialize;
 use time::OffsetDateTime;
 use ts_rs::TS;
@@ -22,6 +23,7 @@ pub enum RunStatus {
 #[ts(export)]
 pub struct Run {
     pub id: Uuid,
+    pub kind: RunKind,
     #[serde(flatten)]
     pub status: RunStatus,
     #[serde(with = "time::serde::rfc3339")]
@@ -51,6 +53,7 @@ mod tests {
     fn a_run_carries_its_status_beside_its_id() {
         let run = Run {
             id: Uuid::nil(),
+            kind: RunKind::Precheck,
             status: RunStatus::Done { passed: false },
             enqueued_at: datetime!(2026-01-01 09:00 UTC),
         };
@@ -58,6 +61,7 @@ mod tests {
             serde_json::to_value(run).unwrap(),
             json!({
                 "id": "00000000-0000-0000-0000-000000000000",
+                "kind": "precheck",
                 "state": "done",
                 "passed": false,
                 "enqueued_at": "2026-01-01T09:00:00Z"

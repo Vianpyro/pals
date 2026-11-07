@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT id AS \"id!\", state AS \"state!: JobState\", passed, enqueued_at AS \"enqueued_at!\"\n            FROM runs WHERE id = $1 AND author = $2\n        ",
+  "query": "\n            SELECT id AS \"id!\", kind AS \"kind!: JobKind\", state AS \"state!: JobState\", passed, enqueued_at AS \"enqueued_at!\"\n            FROM runs WHERE id = $1 AND author = $2\n        ",
   "describe": {
     "columns": [
       {
@@ -16,6 +16,28 @@
       },
       {
         "ordinal": 1,
+        "name": "kind!: JobKind",
+        "type_info": {
+          "Custom": {
+            "name": "job_kind",
+            "kind": {
+              "Enum": [
+                "precheck",
+                "check",
+                "final"
+              ]
+            }
+          }
+        },
+        "origin": {
+          "Table": {
+            "table": "runs",
+            "name": "kind"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
         "name": "state!: JobState",
         "type_info": {
           "Custom": {
@@ -39,7 +61,7 @@
         }
       },
       {
-        "ordinal": 2,
+        "ordinal": 3,
         "name": "passed",
         "type_info": "Bool",
         "origin": {
@@ -50,7 +72,7 @@
         }
       },
       {
-        "ordinal": 3,
+        "ordinal": 4,
         "name": "enqueued_at!",
         "type_info": "Timestamptz",
         "origin": {
@@ -71,8 +93,9 @@
       true,
       true,
       true,
+      true,
       true
     ]
   },
-  "hash": "77a3a9ee9ba36c056f66235792f85d345886ae8141aaba0ae482d67dd1965195"
+  "hash": "b29791c8033c22d25367231e563186bb29d2e9cd4234192f8e5c4d2be7fca3c8"
 }

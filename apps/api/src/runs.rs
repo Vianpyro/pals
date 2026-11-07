@@ -9,7 +9,7 @@ use contracts::{Id, Run, RunStatus};
 use sqlx::{PgPool, types::time::OffsetDateTime};
 use uuid::Uuid;
 
-use super::session::Account;
+use super::{kind::JobKind, session::Account};
 
 #[derive(Debug, sqlx::Type)]
 #[sqlx(type_name = "job_state", rename_all = "lowercase")]
@@ -40,6 +40,7 @@ fn internal_error(context: &str, error: impl std::fmt::Display) -> StatusCode {
 
 fn run(
     id: Uuid,
+    kind: JobKind,
     state: JobState,
     passed: Option<bool>,
     enqueued_at: OffsetDateTime,
@@ -48,6 +49,7 @@ fn run(
         .ok_or_else(|| internal_error("runs", format!("job {id} is done without a result")))?;
     Ok(Run {
         id,
+        kind: kind.into(),
         status,
         enqueued_at,
     })
@@ -56,7 +58,7 @@ fn run(
 pub(super) async fn one(pool: &PgPool, id: Uuid, author: &str) -> Result<Option<Run>, StatusCode> {
     sqlx::query!(
         r#"
-            SELECT id AS "id!", state AS "state!: JobState", passed, enqueued_at AS "enqueued_at!"
+            SELECT id AS "id!", kind AS "kind!: JobKind", state AS "state!: JobState", passed, enqueued_at AS "enqueued_at!"
             FROM runs WHERE id = $1 AND author = $2
         "#,
         id,
@@ -65,7 +67,7 @@ pub(super) async fn one(pool: &PgPool, id: Uuid, author: &str) -> Result<Option<
     .fetch_optional(pool)
     .await
     .map_err(|error| internal_error("run", error))?
-    .map(|row| run(row.id, row.state, row.passed, row.enqueued_at))
+    .map(|row| run(row.id, row.kind, row.state, row.passed, row.enqueued_at))
     .transpose()
 }
 
@@ -73,7 +75,7 @@ pub(super) async fn latest(pool: &PgPool, author: &str) -> Result<Vec<Run>, Stat
     sqlx::query!(
         r#"
             SELECT DISTINCT ON (course, exercise)
-                id AS "id!", state AS "state!: JobState", passed, enqueued_at AS "enqueued_at!"
+                id AS "id!", kind AS "kind!: JobKind", state AS "state!: JobState", passed, enqueued_at AS "enqueued_at!"
                 FROM runs WHERE author = $1
                 ORDER BY course, exercise, enqueued_at DESC, id DESC
         "#,
@@ -83,7 +85,7 @@ pub(super) async fn latest(pool: &PgPool, author: &str) -> Result<Vec<Run>, Stat
     .await
     .map_err(|error| internal_error("latest runs", error))?
     .into_iter()
-    .map(|row| run(row.id, row.state, row.passed, row.enqueued_at))
+    .map(|row| run(row.id, row.kind, row.state, row.passed, row.enqueued_at))
     .collect()
 }
 
@@ -107,7 +109,7 @@ pub(super) async fn history(
 ) -> Result<Json<Vec<Run>>, StatusCode> {
     sqlx::query!(
         r#"
-            SELECT id AS "id!", state AS "state!: JobState", passed, enqueued_at AS "enqueued_at!"
+            SELECT id AS "id!", kind AS "kind!: JobKind", state AS "state!: JobState", passed, enqueued_at AS "enqueued_at!"
             FROM runs
             WHERE author = $1 AND course = $2::text AND exercise = $3::text
             ORDER BY enqueued_at DESC, id DESC
@@ -120,7 +122,7 @@ pub(super) async fn history(
     .await
     .map_err(|error| internal_error("history", error))?
     .into_iter()
-    .map(|row| run(row.id, row.state, row.passed, row.enqueued_at))
+    .map(|row| run(row.id, row.kind, row.state, row.passed, row.enqueued_at))
     .collect::<Result<_, _>>()
     .map(Json)
 }

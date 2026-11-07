@@ -7,7 +7,7 @@ use uuid::Uuid;
 use crate::Id;
 
 /// What a student can ask for (ADR-0040). A final submission is not one: only the platform makes it.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, TS)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "lowercase")]
 #[ts(export)]
 pub enum RunKind {
