@@ -71,6 +71,9 @@ ln -s "$PWD/examples/content" "$work/content/log200"
 "$bin/publisher" examples/content "$work/courses/log200" >/dev/null
 DATABASE_URL=$database "$bin/api" migrate
 sql "INSERT INTO schedules VALUES ('log200', 'sum', now() - interval '1 hour', NULL)"
+# The course opens only to the accounts on its roster (ADR-0012); not seq -f %g, which writes 1e+06
+{ echo account,role; seq "$students" | sed 's/.*/student&,student/'; } |
+  DATABASE_URL=$database "$bin/api" enroll log200 >/dev/null
 sql "INSERT INTO sessions (token_hash, account)
      SELECT sha256(('load-' || i)::bytea), 'student' || i FROM generate_series(1, $students) i"
 

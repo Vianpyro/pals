@@ -31,6 +31,9 @@ ln -s "$PWD/examples/content" "$demo/content/log200"
 psql -q -v ON_ERROR_STOP=1 "$DATABASE_URL" -c "
   INSERT INTO schedules VALUES ('log200', 'sum', now() - interval '1 hour', NULL)
   ON CONFLICT (course, activity) DO UPDATE SET opens_at = excluded.opens_at, closes_at = NULL"
+# The course opens only to the accounts on its roster (ADR-0012)
+printf 'account,role\netudiant1,student\netudiant2,student\nenseignant1,instructor\n' |
+  "$bin/api" enroll log200 >/dev/null
 
 # Whichever stops first, the other goes with it; traps cleared first, or kill 0 would run them again
 trap 'trap - EXIT INT TERM HUP; kill 0' EXIT INT TERM HUP
