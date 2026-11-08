@@ -3,9 +3,9 @@
 
 # Which release to deploy: a tag images.yml pushed, e.g. 0.1.46
 log791_version: ""
-log791_image_prefix: ghcr.io/vianpyro/log795
+log791_image_prefix: ghcr.io/vianpyro/pals
 log791_verify_attestation: true
-log791_repository: Vianpyro/LOG795
+log791_repository: Vianpyro/pals
 
 # Each course's content repository, at a tag or commit: never a branch, so a rerun deploys the same
 log791_courses: []

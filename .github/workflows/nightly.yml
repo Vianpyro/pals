@@ -1,0 +1,145 @@
+# What can break without a commit: a new advisory against a pinned dependency or a released image,
+# an Ubuntu, PostgreSQL or gVisor package that moved under the deployment, a build that stopped
+# being reproducible. A failure opens an issue, or comments on the one already open.
+name: Nightly
+
+on:
+  schedule:
+    - cron: "23 4 * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: nightly
+  cancel-in-progress: true
+
+jobs:
+  advisories:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: taiki-e/install-action@3a3daafd3b7f23b8f65d9f5ba2db203fb59b79e2 # v2.90.2
+        with:
+          tool: cargo-deny@0.20.2
+
+      - name: Crates
+        run: cargo deny --locked check advisories
+
+      # Dev dependencies too: they build the exam page
+      - name: npm packages
+        run: npm audit --audit-level=high
+
+  # The images of the latest release, as deployed: a CVE published after the release shows here
+  released-images:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
+        with:
+          egress-policy: audit
+
+      - name: Scan
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TRIVY_USERNAME: ${{ github.actor }}
+          TRIVY_PASSWORD: ${{ github.token }}
+          TRIVY: aquasec/trivy:0.76.2@sha256:8f6bb947dbc528902e11f2f5be52f7b519f6a39d5d148f41166f2040499768fb
+        run: |
+          version=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)
+          failed=0
+          for app in api judge publisher web; do
+            echo "== $app $version"
+            docker run --rm -e TRIVY_USERNAME -e TRIVY_PASSWORD -v "$RUNNER_TEMP/trivy:/root/.cache/trivy" "$TRIVY" \
+              image --quiet --scanners vuln --ignore-unfixed --severity HIGH,CRITICAL --exit-code 1 \
+              "ghcr.io/${GITHUB_REPOSITORY,,}-$app:${version#v}" || failed=1
+          done
+          exit "$failed"
+
+  # The upstream packages the roles install move without a commit here: deploy as tonight's VMs would
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        ubuntu: ["24.04", "26.04"]
+    steps:
+      - uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: devcontainers/ci@513af61f4de4f75d37e4438f184ba4358f0fc1ca # v0.3
+        env:
+          UBUNTU: ${{ matrix.ubuntu }}
+        with:
+          push: never
+          env: UBUNTU
+          runCmd: bash tests/deploy/run.sh "$UBUNTU"
+
+  # The same commit, built twice from nothing, gives the same binary (SOURCE_DATE_EPOCH, --locked,
+  # fixed paths in the build image): anyone can check that a released binary comes from its source
+  reproducible:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Build twice
+        run: |
+          SOURCE_DATE_EPOCH=$(git log -1 --format=%ct)
+          export SOURCE_DATE_EPOCH
+          for build in first second; do
+            docker buildx build --quiet --no-cache -f apps/api/Dockerfile --output "type=local,dest=$RUNNER_TEMP/$build" .
+          done
+          sha256sum "$RUNNER_TEMP/first/api" "$RUNNER_TEMP/second/api" | tee -a "$GITHUB_STEP_SUMMARY"
+          cmp "$RUNNER_TEMP/first/api" "$RUNNER_TEMP/second/api"
+
+  report:
+    needs: [advisories, released-images, deploy, reproducible]
+    if: always() && contains(needs.*.result, 'failure')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          title="Nightly checks failing"
+          body=$(printf 'Failed: %s\n\n%s' "$(jq -r 'to_entries[] | select(.value.result == "failure") | .key' <<<"$NEEDS" | paste -sd, -)" "$RUN")
+          issue=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "in:title \"$title\"" --json number --jq '.[0].number')
+          if [ -n "$issue" ]; then
+            gh issue comment "$issue" --repo "$GITHUB_REPOSITORY" --body "$body"
+          else
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" --body "$body"
+          fi

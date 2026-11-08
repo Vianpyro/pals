@@ -1,12 +1,12 @@
 # Development image: tools only, no application code or dependencies.
-# Dependabot updates the FROM lines and requirements.txt; the ARG below is updated by hand.
+# Renovate updates the FROM lines, requirements.txt and the ARG below (.github/renovate.json5).
 
-# Node for the web interface: same version as apps/web/Dockerfile, which Dependabot updates with this one
+# Node for the web interface: same version as apps/web/Dockerfile, which Renovate updates with this one
 FROM node:26.13.0-trixie-slim AS node
 
 FROM mcr.microsoft.com/devcontainers/python:3.15-trixie
 
-# Also read by .github/workflows/pages.yml: the HTML export changes between versions.
+# Also read by .github/workflows/_docs.yml: the HTML export changes between versions.
 ARG TYPST_VERSION=0.15.1
 
 RUN apt-get update \

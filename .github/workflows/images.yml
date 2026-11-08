@@ -1,18 +1,18 @@
-# Builds one image per apps/<app>/Dockerfile. On main and version tags, pushes it to
-# GHCR with a build provenance attestation, which Ansible verifies before deploying.
-# There is no deploy job: the ÉTS VMs are only reachable through the school's VPN,
-# and deployment is an Ansible run from a workstation connected to it.
+# Publishes one image per apps/<app>/Dockerfile to GHCR, from main and from version tags, each with
+# two attestations Ansible can verify: build provenance and an SPDX SBOM. ci.yml builds the same
+# images on pull requests through the same composite action, without publishing them.
+# There is no deploy job: the ÉTS VMs are only reachable through the school's VPN, and deployment
+# is an Ansible run from a workstation connected to it (roles/artifacts verifies the provenance).
 name: Images
 
 on:
   push:
     branches: [main]
     tags: ["v*"]
-  pull_request:
+  # release.sh dispatches it on the new tag: a tag pushed with GITHUB_TOKEN triggers nothing
   workflow_dispatch:
 
-permissions:
-  contents: read
+permissions: {}
 
 concurrency:
   group: images-${{ github.ref }}
@@ -21,49 +21,78 @@ concurrency:
 jobs:
   discover:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
     outputs:
       apps: ${{ steps.find.outputs.apps }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - id: find
         run: |
           apps=$(find apps -mindepth 2 -maxdepth 2 -name Dockerfile | cut -d/ -f2 | sort | jq -Rsc 'split("\n") | map(select(. != ""))')
           echo "apps=$apps" >> "$GITHUB_OUTPUT"
 
-  build:
+  publish:
     needs: discover
-    # ponytail: every app is rebuilt on every push; filter by changed paths if builds get slow.
-    if: needs.discover.outputs.apps != '[]'
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     permissions:
       contents: read
       packages: write
       id-token: write
       attestations: write
+      security-events: write
     strategy:
       fail-fast: false
       matrix:
         app: ${{ fromJSON(needs.discover.outputs.apps) }}
     env:
-      PUBLISH: ${{ github.event_name != 'pull_request' }}
+      APP: ${{ matrix.app }}
+      RELEASE: ${{ startsWith(github.ref, 'refs/tags/v') }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Image name
-        run: echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}-${{ matrix.app }}" >> "$GITHUB_ENV"
+        run: echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}-$APP" >> "$GITHUB_ENV"
 
-      - uses: docker/setup-buildx-action@v4
+      # Built and scanned before anything is pushed. A release is never published with a
+      # vulnerability that has a fix, and is built from nothing: a cache entry a pull request could
+      # have written never reaches it. main only reports, from the cache.
+      - uses: ./.github/actions/image
+        with:
+          app: ${{ matrix.app }}
+          fail-on: ${{ env.RELEASE == 'true' && 'HIGH,CRITICAL' || '' }}
+          sarif: trivy-${{ matrix.app }}.sarif
+          cache: ${{ env.RELEASE == 'true' && 'false' || 'true' }}
 
-      - if: env.PUBLISH == 'true'
-        uses: docker/login-action@v4
+      - if: always() && hashFiles(format('trivy-{0}.sarif', matrix.app)) != ''
+        uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          sarif_file: trivy-${{ matrix.app }}.sarif
+          category: image-${{ matrix.app }}
+
+      - uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - id: meta
-        uses: docker/metadata-action@v6
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
           images: ${{ env.IMAGE }}
           tags: |
@@ -71,21 +100,36 @@ jobs:
             type=ref,event=branch
             type=semver,pattern={{version}}
 
-      # The context is the repository root, so an app can copy packages/.
+      # From the builder's cache of the build above. Timestamps rewritten to the commit's
+      # (SOURCE_DATE_EPOCH, set by the composite action): the same commit gives the same layers.
       - id: build
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           file: apps/${{ matrix.app }}/Dockerfile
-          push: ${{ env.PUBLISH == 'true' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=${{ matrix.app }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.app }}
+          outputs: type=image,push=true,rewrite-timestamp=true
+          sbom: true
 
-      - if: env.PUBLISH == 'true'
-        uses: actions/attest-build-provenance@v4
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-name: ${{ env.IMAGE }}
           subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+
+      # The SBOM BuildKit wrote into the image, signed as a GitHub attestation too: verifiable
+      # with gh like the provenance, and listed on the repository's attestations page
+      - name: SBOM
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          docker buildx imagetools inspect "$IMAGE@$DIGEST" --format '{{ json .SBOM.SPDX }}' > sbom.spdx.json
+          jq -e '.spdxVersion and (.packages | length > 0)' sbom.spdx.json >/dev/null
+
+      - uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
+        with:
+          subject-name: ${{ env.IMAGE }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          sbom-path: sbom.spdx.json
           push-to-registry: true

@@ -1,0 +1,69 @@
+# Which CI jobs a changed file concerns (ADR-0004: only what changed is rebuilt), read by changes.sh.
+# One "area pattern" per line; a bash pattern where * also crosses /. A change under .github/
+# runs every area, and so does every push to main.
+
+rust Cargo.toml
+rust Cargo.lock
+rust rust-toolchain.toml
+rust clippy.toml
+rust deny.toml
+rust apps/api/*
+rust apps/judge/*
+rust apps/publisher/*
+rust apps/admin/*
+rust packages/content/*
+rust packages/contracts/*
+rust db/*
+rust .sqlx/*
+rust packs/*
+rust examples/*
+rust spikes/*
+
+# The images hold the Rust binaries, the packs and the page, whose build runs the web checks
+# (apps/web/Dockerfile)
+images Cargo.toml
+images Cargo.lock
+images rust-toolchain.toml
+images apps/*
+images packages/*
+images packs/*
+images db/*
+images .sqlx/*
+images package.json
+images package-lock.json
+images .npmrc
+
+# Every service at once: what the API, the judge, nginx and the page do together
+integration Cargo.toml
+integration Cargo.lock
+integration apps/*
+integration packages/*
+integration packs/*
+integration db/*
+integration .sqlx/*
+integration examples/*
+integration package.json
+integration package-lock.json
+integration playwright*
+integration tests/*
+integration .devcontainer/*
+integration infrastructure/ansible/roles/nginx/files/*
+
+# A real deployment onto Ubuntu containers: slow, so only for what it deploys
+deploy infrastructure/*
+deploy apps/*
+deploy db/*
+deploy packs/*
+deploy tests/deploy/*
+
+ansible infrastructure/*
+ansible .devcontainer/requirements.txt
+
+docs docs/*
+docs report/*
+docs site/*
+docs apps/web/*
+docs packages/*
+docs examples/*
+docs package-lock.json
+docs .devcontainer/Dockerfile

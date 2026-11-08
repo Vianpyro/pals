@@ -1,7 +1,7 @@
 # The web interface as static files (spec D8, D22). npm runs only in the build stage, which holds no
 # secret or credential: a compromised package that ran there could steal nothing. Only dist/ leaves it.
 # Built and attested by .github/workflows/images.yml from the repository root.
-# Node: same version as .devcontainer/Dockerfile; Dependabot updates both.
+# Node: same version as .devcontainer/Dockerfile; Renovate updates both (tests/policy/pins.sh).
 FROM node:26.13.0-alpine AS build
 WORKDIR /src
 
@@ -21,7 +21,7 @@ RUN npm run check --workspaces --if-present \
     && npm run budget -w apps/web \
     && rm -r apps/web/dist/.vite
 
-# The student's page with no server, for GitHub Pages (pages.yml), after the checks above. Only built
+# The student's page with no server, for GitHub Pages (_docs.yml), after the checks above. Only built
 # with --target demo; the examples stay out of the production image.
 FROM build AS demo-build
 COPY examples/content examples/content

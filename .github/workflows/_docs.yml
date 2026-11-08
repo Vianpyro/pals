@@ -1,0 +1,58 @@
+# The documents and the demo, as one site: checked by ci.yml on every change to them, deployed by
+# pages.yml from main. One build for both, so what a pull request checks is what goes out.
+name: Documentation build
+
+on:
+  workflow_call:
+    inputs:
+      upload:
+        description: Upload _site as the Pages artifact
+        type: boolean
+        default: false
+
+permissions: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Same version as the dev container, read from its Dockerfile: the HTML export
+      # changes from one version to the next
+      - name: Install Typst
+        run: |
+          TYPST_VERSION=$(sed -n 's/^ARG TYPST_VERSION=//p' .devcontainer/Dockerfile)
+          echo "TYPST_VERSION=$TYPST_VERSION" >> "$GITHUB_ENV"
+          curl -fsSL "https://github.com/typst/typst/releases/download/v${TYPST_VERSION}/typst-x86_64-unknown-linux-musl.tar.xz" \
+            | tar -xJ --strip-components=1 -C /usr/local/bin typst-x86_64-unknown-linux-musl/typst
+          typst --version
+
+      # @preview packages (merman) are downloaded on the first build
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/typst
+          key: typst-packages-${{ env.TYPST_VERSION }}-${{ hashFiles('**/*.typ') }}
+          restore-keys: typst-packages-${{ env.TYPST_VERSION }}-
+
+      - name: Build
+        run: sh site/build.sh
+
+      # npm runs only in the image's build stage, which holds no secret (spec D8). After site/build.sh,
+      # which empties _site: a deployment replaces the whole site, so the demo goes out with the documents.
+      - name: Build the demo
+        run: docker build --file apps/web/Dockerfile --target demo --output _site/demo .
+
+      - if: inputs.upload
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: _site

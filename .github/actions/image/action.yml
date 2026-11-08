@@ -1,0 +1,58 @@
+# Builds one app's image (apps/<app>/Dockerfile) into the runner's Docker and scans it, for ci.yml
+# and images.yml alike: what a pull request builds is what a release builds. A composite action, not
+# a reusable workflow: images.yml publishes with write permissions ci.yml must never be granted.
+name: Build and scan an image
+description: Builds apps/<app>/Dockerfile as local/<app>:ci and scans it with Trivy
+
+inputs:
+  app:
+    description: The directory under apps/
+    required: true
+  fail-on:
+    description: Severities that fail the scan when a fix exists (empty only reports)
+    default: ""
+  sarif:
+    description: Also write the findings to this SARIF file
+    default: ""
+  cache:
+    description: Read and write the GitHub Actions cache ("false" for a release, built from nothing)
+    default: "true"
+
+runs:
+  using: composite
+  steps:
+    # BuildKit dates what it writes at the commit, not at the build (reproducible builds), here and
+    # in the publishing build of images.yml that follows in the same job
+    - name: Build date
+      shell: bash
+      run: echo "SOURCE_DATE_EPOCH=$(git log -1 --format=%ct)" >> "$GITHUB_ENV"
+
+    - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+    # The context is the repository root, so an app can copy packages/. The web image runs the
+    # web checks while it builds (apps/web/Dockerfile).
+    - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+      with:
+        context: .
+        file: apps/${{ inputs.app }}/Dockerfile
+        load: true
+        tags: local/${{ inputs.app }}:ci
+        cache-from: ${{ inputs.cache == 'true' && format('type=gha,scope={0}', inputs.app) || '' }}
+        cache-to: ${{ inputs.cache == 'true' && format('type=gha,mode=max,scope={0}', inputs.app) || '' }}
+
+    # The Rust binaries carry their dependency list (cargo auditable), so even a FROM scratch image
+    # is scanned. --ignore-unfixed: a finding nobody can fix yet only adds noise.
+    - name: Scan
+      shell: bash
+      env:
+        APP: ${{ inputs.app }}
+        FAIL_ON: ${{ inputs.fail-on }}
+        SARIF: ${{ inputs.sarif }}
+        TRIVY: aquasec/trivy:0.76.2@sha256:8f6bb947dbc528902e11f2f5be52f7b519f6a39d5d148f41166f2040499768fb
+      run: |
+        trivy() {
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "$RUNNER_TEMP/trivy:/root/.cache/trivy" \
+            -v "$PWD:/out" "$TRIVY" image --quiet --scanners vuln --ignore-unfixed "$@" "local/$APP:ci"
+        }
+        trivy --format table --severity "${FAIL_ON:-UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL}" --exit-code "$([ -n "$FAIL_ON" ] && echo 1 || echo 0)"
+        if [ -n "$SARIF" ]; then trivy --format sarif --output "/out/$SARIF"; fi

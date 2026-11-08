@@ -1,0 +1,80 @@
+# Called by each course's content repository (ADR-0004: content lives apart, ADR-0023: it is
+# untrusted), so an instructor sees a broken or hostile tree on their pull request, not at deploy:
+#
+#   jobs:
+#     proof:
+#       permissions: { contents: read }
+#       uses: Vianpyro/pals/.github/workflows/content-proof.yml@v0.1.51
+#       with: { platform: 0.1.51 }
+#
+# It publishes the content with the attested publisher of that platform release, the one Ansible
+# deploys, in a container with no network and a read-only tree.
+# shortcut: the reference solutions are not run through the judge yet (arch:1205), which needs a
+# judge that runs without the queue; add that job when it exists.
+name: Content proof
+
+on:
+  workflow_call:
+    inputs:
+      platform:
+        description: The platform release whose publisher checks the content, e.g. 0.1.51
+        type: string
+        required: true
+
+permissions: {}
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    env:
+      PLATFORM: ${{ inputs.platform }}
+      PUBLISHER: ghcr.io/vianpyro/pals-publisher
+    steps:
+      - uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: content
+          persist-credentials: false
+
+      # What the publisher refuses anyway, said here in the instructor's words (ADR-0023)
+      - name: Tree
+        working-directory: content
+        run: |
+          failed=0
+          links=$(git ls-files -s | awk '$1 == "120000" {print $4}')
+          [ -z "$links" ] || { echo "::error::symbolic links are refused: $links"; failed=1; }
+          [ ! -e .gitmodules ] || { echo "::error::submodules are refused"; failed=1; }
+          ! git ls-files -z | xargs -0 -r git check-attr filter -- | grep -q ': filter: lfs$' || { echo "::error::Git LFS files are refused"; failed=1; }
+          large=$(git ls-files -z | xargs -0 -r stat -c '%s %n' | awk '$1 > 10 * 1024 * 1024 {print $2}')
+          [ -z "$large" ] || { echo "::error::files over 10 MB: $large"; failed=1; }
+          exit "$failed"
+
+      # Provenance first: only a publisher this repository's images.yml built from a release tag runs
+      - name: Publisher
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          docker pull --quiet "$PUBLISHER:$PLATFORM"
+          digest=$(docker image inspect "$PUBLISHER:$PLATFORM" --format '{{index .RepoDigests 0}}')
+          gh attestation verify "oci://$digest" --repo Vianpyro/pals \
+            --signer-workflow Vianpyro/pals/.github/workflows/images.yml \
+            --source-ref "refs/tags/v$PLATFORM" --deny-self-hosted-runners
+          container=$(docker create "$digest" none)
+          docker cp "$container:/publisher" "$RUNNER_TEMP/publisher"
+          docker rm "$container" >/dev/null
+
+      - name: Publish
+        run: |
+          mkdir -p "$RUNNER_TEMP/out"
+          docker run --rm --network none --read-only --tmpfs /tmp --cap-drop ALL --security-opt no-new-privileges \
+            --user "$(id -u):$(id -g)" --memory 512m --pids-limit 64 \
+            -v "$RUNNER_TEMP/publisher:/publisher:ro" -v "$PWD/content:/content:ro" -v "$RUNNER_TEMP/out:/out" \
+            debian:bookworm-slim@sha256:734a72b3d6142a71993b4bc580ca01d8ca687f77a2c422d96a961d3376b179bc /publisher /content /out
+          echo "### Published" >> "$GITHUB_STEP_SUMMARY"
+          (cd "$RUNNER_TEMP/out" && find . -type f | sort) >> "$GITHUB_STEP_SUMMARY"

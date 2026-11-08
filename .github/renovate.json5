@@ -1,0 +1,156 @@
+// Every pinned version in the repository, updated by pull request. Renovate rather than Dependabot:
+// it also reads the pins no package manager knows (pack images, ARG lines, the runsc release,
+// images and tools in the workflows) and moves the copies of one version together.
+// tests/policy/pins.sh fails when two copies of the Rust or Node version disagree.
+{
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+  extends: [
+    "config:recommended",
+    // Actions by commit SHA, with the tag as a comment: a moved tag changes nothing here
+    "helpers:pinGitHubActionDigests",
+    ":dependencyDashboard",
+  ],
+  // build(deps): ..., which the commit-msg check in CI accepts
+  semanticCommits: "enabled",
+  semanticCommitType: "build",
+  semanticCommitScope: "deps",
+  labels: ["dependencies"],
+  timezone: "America/Toronto",
+  schedule: ["before 6am on monday"],
+  // A release waits a week before it is proposed: time for a compromised one to be caught and
+  // pulled, since npm code ends up in the exam page and crates in the judge (spec D8)
+  minimumReleaseAge: "7 days",
+  // A known vulnerability does not wait for the schedule or the week
+  vulnerabilityAlerts: {
+    labels: ["security"],
+    minimumReleaseAge: null,
+    schedule: ["at any time"],
+  },
+  osvVulnerabilityAlerts: true,
+  lockFileMaintenance: {
+    enabled: true,
+    schedule: ["before 6am on monday"],
+  },
+  packageRules: [
+    {
+      matchManagers: ["github-actions"],
+      semanticCommitType: "ci",
+      groupName: "actions",
+    },
+    {
+      matchManagers: ["cargo"],
+      groupName: "crates",
+    },
+    {
+      matchManagers: ["npm"],
+      matchDepTypes: ["dependencies", "devDependencies"],
+      groupName: "packages",
+    },
+    {
+      matchManagers: ["docker-compose"],
+      groupName: "services",
+    },
+    {
+      matchManagers: ["pip_requirements"],
+      groupName: "tools",
+    },
+    // One version of Rust: rust-toolchain.toml, Cargo.toml, the three Rust Dockerfiles, the dev container
+    {
+      matchDepNames: ["rust"],
+      groupName: "rust",
+    },
+    // One version of Node: engines, apps/web/Dockerfile, the dev container
+    {
+      matchDepNames: ["node"],
+      groupName: "node",
+    },
+    {
+      matchDepTypes: ["engines"],
+      rangeStrategy: "bump",
+    },
+    // A new runtime version changes what a student's program does: a pack moves between terms, by
+    // hand, after its references are measured again (ADR-0007). Within a version, security fixes.
+    {
+      matchFileNames: ["packs/**"],
+      matchUpdateTypes: ["major", "minor"],
+      enabled: false,
+    },
+    {
+      matchFileNames: ["packs/**"],
+      groupName: "pack images",
+    },
+  ],
+  customManagers: [
+    {
+      customType: "regex",
+      description: "Rust toolchain and the workspace's rust-version",
+      managerFilePatterns: ["/^rust-toolchain\\.toml$/", "/^Cargo\\.toml$/"],
+      matchStrings: ['(channel|rust-version) = "(?<currentValue>\\d+\\.\\d+\\.\\d+)"'],
+      depNameTemplate: "rust",
+      datasourceTemplate: "docker",
+    },
+    {
+      customType: "regex",
+      description: "Rust of the dev container's feature",
+      managerFilePatterns: ["/^\\.devcontainer/devcontainer\\.json$/"],
+      matchStrings: ['features/rust:1": \\{ "version": "(?<currentValue>[^"]+)"'],
+      depNameTemplate: "rust",
+      datasourceTemplate: "docker",
+    },
+    {
+      customType: "regex",
+      description: "Typst, read by _docs.yml from the dev container",
+      managerFilePatterns: ["/^\\.devcontainer/Dockerfile$/"],
+      matchStrings: ["ARG TYPST_VERSION=(?<currentValue>\\S+)"],
+      depNameTemplate: "typst/typst",
+      datasourceTemplate: "github-releases",
+      extractVersionTemplate: "^v(?<version>.+)$",
+    },
+    {
+      customType: "regex",
+      description: "runsc release of the gvisor role (ADR-0002)",
+      managerFilePatterns: ["/^infrastructure/ansible/roles/gvisor/defaults/main\\.yml$/"],
+      matchStrings: ['gvisor_release: "(?<currentValue>\\d{8})"'],
+      depNameTemplate: "google/gvisor",
+      datasourceTemplate: "github-tags",
+      extractVersionTemplate: "^release-(?<version>\\d{8})\\.0$",
+      versioningTemplate: "regex:^(?<major>\\d+)$",
+    },
+    {
+      customType: "regex",
+      description: "Images pinned as name:tag@digest: language packs and tools in the workflows",
+      managerFilePatterns: ["/^packs/.+/pack\\.toml$/", "/^\\.github/.+\\.ya?ml$/"],
+      matchStrings: ["(?<depName>[a-z0-9][a-z0-9._/-]*):(?<currentValue>[A-Za-z0-9][\\w.-]*)@(?<currentDigest>sha256:[a-f0-9]{64})"],
+      datasourceTemplate: "docker",
+      autoReplaceStringTemplate: "{{depName}}:{{newValue}}@{{newDigest}}",
+    },
+    {
+      customType: "regex",
+      description: "Cargo tools installed by taiki-e/install-action",
+      managerFilePatterns: ["/^\\.github/workflows/.+\\.ya?ml$/"],
+      matchStrings: ["(?<depName>cargo-[a-z-]+)@(?<currentValue>\\d+\\.\\d+\\.\\d+)"],
+      datasourceTemplate: "crate",
+    },
+    {
+      customType: "regex",
+      description: "cargo auditable in the Rust Dockerfiles",
+      managerFilePatterns: ["/^apps/.+/Dockerfile$/"],
+      matchStrings: ["cargo install (?<depName>cargo-[a-z-]+) --locked --version (?<currentValue>\\d+\\.\\d+\\.\\d+)"],
+      datasourceTemplate: "crate",
+    },
+    {
+      customType: "regex",
+      description: "Python tools run with pipx in the workflows",
+      managerFilePatterns: ["/^\\.github/workflows/.+\\.ya?ml$/"],
+      matchStrings: ["--spec (?<depName>[a-z-]+)==(?<currentValue>[\\d.]+)"],
+      datasourceTemplate: "pypi",
+    },
+    {
+      customType: "regex",
+      description: "npm tools run with npx in the workflows",
+      managerFilePatterns: ["/^\\.github/workflows/.+\\.ya?ml$/"],
+      matchStrings: ["--package (?<depName>[a-z-]+)@(?<currentValue>[\\d.]+)"],
+      datasourceTemplate: "npm",
+    },
+  ],
+}

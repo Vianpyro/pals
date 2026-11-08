@@ -27,8 +27,9 @@ check() {
   fi
 }
 
+# LDAPS only, as the API (ADR-0017): ldapsearch trusts only the pinned CA too
 ldap_finds_student() {
-  ldapsearch -x -H "$LDAP_URL" -D "$LDAP_BIND_DN" -w "$LDAP_BIND_PASSWORD" \
+  LDAPTLS_CACERT="$LDAP_CA_FILE" ldapsearch -x -H "$LDAP_URL" -D "$LDAP_BIND_DN" -w "$LDAP_BIND_PASSWORD" \
     -b "$LDAP_BASE_DN" "($LDAP_USER_ATTRIBUTE=etudiant1)" "$LDAP_USER_ATTRIBUTE" \
     | grep -q "^$LDAP_USER_ATTRIBUTE: etudiant1"
 }
@@ -45,8 +46,10 @@ check "ldap: test accounts" 60 ldap_finds_student
 check "docker: inner daemon" 30 docker info
 check "docker: runsc registered" 5 runsc_registered
 check "gvisor: hello-world" 1 docker run --rm --runtime=runsc hello-world
-check "gvisor: python" 1 docker run --rm --runtime=runsc python:3.15-alpine python -c "print(1)"
-check "gvisor: java" 1 docker run --rm --runtime=runsc eclipse-temurin:25-jdk-alpine java -version
+# The packs' pinned images, fetched here: the judge never pulls one (--pull never, ADR-0013)
+pack_image() { sed -n 's/^image = "\(.*\)"$/\1/p' "packs/languages/$1/pack.toml"; }
+check "gvisor: python" 1 docker run --rm --runtime=runsc "$(pack_image python)" python -c "print(1)"
+check "gvisor: java" 1 docker run --rm --runtime=runsc "$(pack_image java)" java -version
 check "typst" 1 typst --version
 check "ansible" 1 ansible --version
 check "ansible-lint" 1 ansible-lint --version

@@ -2,12 +2,16 @@
 - name: Pull the image of {{ artifacts_app }}
   ansible.builtin.command: docker pull --quiet {{ artifacts_image }}
   changed_when: false
+  # Reads only: also in check mode (drift.sh), where the tasks below need the digest
+  check_mode: false
   when: log791_verify_attestation
 
 - name: Read the image of {{ artifacts_app }}
   ansible.builtin.command: docker image inspect {{ artifacts_image }}
   register: artifacts_inspected
   changed_when: false
+  # Reads only: also in check mode (drift.sh), where the tasks below need the digest
+  check_mode: false
 
 - name: Find the digest of the image of {{ artifacts_app }}
   ansible.builtin.set_fact:
@@ -19,10 +23,22 @@
   vars:
     artifacts_image_facts: "{{ (artifacts_inspected.stdout | from_json) | first }}"
 
-# The provenance images.yml attests: built by this repository's workflow, from a commit of it
+# The provenance images.yml attests: built by that workflow, not another one of the repository,
+# on GitHub's runners, from the release tag of the version deployed
 - name: Verify the provenance of the image of {{ artifacts_app }}
-  ansible.builtin.command: gh attestation verify oci://{{ artifacts_digest }} --repo {{ log791_repository }}
+  ansible.builtin.command:
+    argv:
+      - gh
+      - attestation
+      - verify
+      - oci://{{ artifacts_digest }}
+      - --repo={{ log791_repository }}
+      - --signer-workflow={{ log791_repository }}/.github/workflows/images.yml
+      - --source-ref=refs/tags/v{{ log791_version }}
+      - --deny-self-hosted-runners
   changed_when: false
+  # Reads only: also in check mode (drift.sh), where the tasks below need the digest
+  check_mode: false
   when: log791_verify_attestation
 
 # Into a partial directory first: a run stopped halfway leaves nothing a later run would trust

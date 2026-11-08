@@ -4,15 +4,15 @@
 # GITHUB_TOKEN, like the bump commit, triggers no other workflow.
 name: Release
 
+# Not a dangerous trigger here: the job runs only for a push to main (if: below), never for the CI
+# of a pull request, and checks out the commit that CI tested.
 on:
-  workflow_run:
+  workflow_run: # zizmor: ignore[dangerous-triggers]
     workflows: [CI]
     types: [completed]
     branches: [main]
 
-permissions:
-  contents: write
-  actions: write
+permissions: {}
 
 concurrency:
   group: release
@@ -20,10 +20,20 @@ concurrency:
 
 jobs:
   release:
+    # A push to main only: workflow_run also fires for pull requests' CI, whose code is not trusted
     if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      actions: write
     steps:
-      - uses: actions/checkout@v7
+      - uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
+        with:
+          egress-policy: audit
+
+      # The credentials stay: release.sh pushes the bump commit. Nothing else runs in this job.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1 zizmor: ignore[artipacked]
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 0

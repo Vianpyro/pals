@@ -115,6 +115,16 @@ mod tests {
         );
     }
 
+    // 125 is also Docker's own failure code: the program's own is still a crash
+    #[tokio::test]
+    #[ignore = "needs Docker with runsc"]
+    async fn exit_125_crashes_every_case() {
+        assert_eq!(
+            python_on_sum("crash-125", "import sys; sys.exit(125)").await,
+            [Verdict::Crashed; 5]
+        );
+    }
+
     #[tokio::test]
     #[ignore = "needs Docker with runsc"]
     async fn largest_source_is_judged() {

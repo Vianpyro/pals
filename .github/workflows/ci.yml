@@ -1,3 +1,6 @@
+# Every check of a change. "gate" sums them up, the one check a ruleset needs to require: it passes
+# when every job passed or was skipped because the change does not concern it (.github/paths, ADR-0004).
+# Pull requests from forks get a read-only token and no secret: nothing here needs more.
 name: CI
 
 on:
@@ -6,96 +9,74 @@ on:
   pull_request:
   workflow_dispatch:
 
-permissions:
-  contents: read
+permissions: {}
 
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  # The same environment as locally: PostgreSQL, LDAP, gVisor and nginx, checked by check.sh.
-  # Ignored tests need these services: they run here.
-  # The queries are checked against the migrated schema; .sqlx/ must match it.
-  # nginx's headers are checked on the built page; the web image build (images.yml) runs the web checks.
-  # The student's journeys need the API and the judge: the demo runs in the background, and its log
-  # is printed if the API never answers.
-  devcontainer:
+  # Which areas the change touches. Every area on main: a release is built from all of it.
+  changes:
     runs-on: ubuntu-latest
-    continue-on-error: true
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      rust: ${{ steps.areas.outputs.rust }}
+      images: ${{ steps.areas.outputs.images }}
+      integration: ${{ steps.areas.outputs.integration }}
+      deploy: ${{ steps.areas.outputs.deploy }}
+      ansible: ${{ steps.areas.outputs.ansible }}
+      docs: ${{ steps.areas.outputs.docs }}
+      apps: ${{ steps.apps.outputs.apps }}
     steps:
-      # The release tags: the contracts are compared with the previous release's
-      - uses: actions/checkout@v7
+      - uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          persist-credentials: false
 
-      - uses: devcontainers/ci@v0.3
-        with:
-          push: never
-          runCmd: >-
-            bash .devcontainer/check.sh
-            && bash tests/queries/check.sh
-            && cargo test --locked -- --ignored
-            && bash tests/contracts/check.sh
-            && bash tests/contracts/compatible.sh
-            && npm run build -w apps/web
-            && bash tests/web/headers.sh
-            && (bash .devcontainer/demo.sh > /tmp/demo.log 2>&1 &)
-            && { timeout 300 sh -c 'until curl -sf http://localhost/api/health; do sleep 2; done' || { cat /tmp/demo.log; exit 1; }; }
-            && CI=1 npm run e2e
-            && CI=1 npm run e2e:demo
-
-  # The runner's rustup installs the toolchain of rust-toolchain.toml on first use.
-  # No PostgreSQL here: query! macros read .sqlx/, written by cargo sqlx prepare.
-  rust:
-    runs-on: ubuntu-latest
-    env:
-      SQLX_OFFLINE: "true"
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Format
-        run: cargo fmt --check
-
-      - name: Clippy
-        run: cargo clippy --locked --all-targets -- -D warnings
-
-      - name: Tests
-        run: cargo test --locked
-
-      # The tests rewrote packages/contracts/bindings (ts-rs): the committed TypeScript must match.
-      # --intent-to-add: a binding the tests created, and nobody committed, shows in the diff.
-      - name: Contracts
+      - id: areas
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha }}
         run: |
-          git add --intent-to-add packages/contracts/bindings
-          git diff --exit-code -- packages/contracts/bindings
+          if [ "$EVENT" = pull_request ]; then
+            git diff --name-only "$BASE...HEAD" | bash .github/changes.sh .github/paths
+          else
+            ALL=1 bash .github/changes.sh .github/paths </dev/null
+          fi | tee -a "$GITHUB_OUTPUT"
 
-      # Component boundaries (ADR-0014), from the crate graph.
-      - name: Architecture
-        run: bash tests/architecture/boundaries.sh
-
-  # Reference solutions of the ADR-0018 spike against the example exercises; removed with the spike.
-  # The runner already has Python 3, Java and Node.js.
-  exercises:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Reference solutions
-        run: bash spikes/build-or-reuse/check.sh
+      # One image per apps/<app>/Dockerfile: a new app is built without being listed here
+      - id: apps
+        run: |
+          apps=$(find apps -mindepth 2 -maxdepth 2 -name Dockerfile | cut -d/ -f2 | sort | jq -Rsc 'split("\n") | map(select(. != ""))')
+          echo "apps=$apps" | tee -a "$GITHUB_OUTPUT"
 
   lint:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v7
+      - uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          persist-credentials: false
 
-      # Every tracked script, so a new one is checked without being listed here.
+      # Every tracked script, so a new one is checked without being listed here
       - name: Shell scripts
         run: git ls-files -z '*.sh' '.githooks/*' | xargs -0 shellcheck
 
-      # The commit-msg hook, for the commits that skipped it: web editor, Dependabot, another clone.
+      # The commit-msg hook, for the commits that skipped it: web editor, Renovate, another clone
       - name: Commit messages
         if: github.event_name != 'workflow_dispatch'
         env:
@@ -106,17 +87,333 @@ jobs:
             sh .githooks/commit-msg "$RUNNER_TEMP/message"
           done
 
-      # Commit-msg hook and version bump rule of the release workflow.
-      - name: Release
-        run: bash tests/release/check.sh
+      # Secrets in the commits pushed; security.yml scans the whole history
+      - name: Secrets
+        if: github.event_name != 'workflow_dispatch'
+        env:
+          RANGE: ${{ github.event.pull_request.base.sha || github.event.before }}..${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          case "$RANGE" in 0000000*) RANGE=${RANGE#*..} ;; esac
+          docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/repo" -w /repo \
+            zricethezav/gitleaks:v8.30.1@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f \
+            git --redact --no-banner --log-opts="$RANGE" .
+
+      # The commit-msg hook and the version bump rule of release.sh, then the path filter
+      - name: Release and path filter
+        run: bash tests/release/check.sh && bash tests/ci/check.sh
 
       - name: Workflows
-        run: docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.12 -color
+        run: docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.12@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667 -color
 
-      # Same versions as the dev container, from its requirements file.
-      - name: Ansible
-        if: hashFiles('infrastructure/ansible/**/*.yml') != ''
+      # A broken Renovate configuration silently stops every update
+      - name: Renovate configuration
+        run: npx --yes --package renovate@44.198.3 -- renovate-config-validator --strict .github/renovate.json5
+
+      # Template injection, excessive permissions, unpinned or impostor actions, cache poisoning
+      - name: Workflow security
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: pipx run --spec zizmor==1.32.0 zizmor --format=github .
+
+  # The project's own rules (tests/policy): pins, packs, accepted ADRs, code invariants, migrations
+  policy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Policy
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          MIGRATIONS_FROZEN: ${{ vars.MIGRATIONS_FROZEN }}
+        run: bash tests/policy/run.sh
+
+      # Not a gate: the ledger of known shortcuts (ADR-0014), for whoever reads the run
+      - name: Shortcuts
+        run: bash tests/policy/shortcuts.sh >> "$GITHUB_STEP_SUMMARY"
+
+      # What would lock a table or break the previous release's code (ADR-0024: expand, then
+      # contract). A report until the platform holds real data, then a gate (MIGRATIONS_FROZEN).
+      - name: Migrations
+        env:
+          MIGRATIONS_FROZEN: ${{ vars.MIGRATIONS_FROZEN }}
         run: |
-          pip install -r .devcontainer/requirements.txt
-          ansible-galaxy collection install -r infrastructure/ansible/requirements.yml
-          ansible-lint infrastructure/ansible
+          status=0
+          {
+            echo '### Migration lint (squawk)'
+            echo '```'
+            pipx run --spec squawk-cli==2.71.0 squawk --reporter gcc db/migrations/*.sql || status=$?
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          [ "$status" = 0 ] || [ "$MIGRATIONS_FROZEN" != true ]
+
+  rust:
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    # No PostgreSQL here: query! macros read .sqlx/, which the integration job checks
+    env:
+      SQLX_OFFLINE: "true"
+    steps:
+      - uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The runner's rustup installs the toolchain of rust-toolchain.toml on first use
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - uses: taiki-e/install-action@3a3daafd3b7f23b8f65d9f5ba2db203fb59b79e2 # v2.90.2
+        with:
+          tool: cargo-nextest@0.9.151,cargo-llvm-cov@0.9.1,cargo-deny@0.20.2
+
+      - name: Format
+        run: cargo fmt --check
+
+      - name: Clippy
+        run: cargo clippy --locked --all-targets -- -D warnings
+
+      # Licenses, banned crates, and crates.io as the only source. Advisories run nightly
+      # (nightly.yml), since a new one would fail every pull request; dependency-review covers
+      # the vulnerable crates a pull request adds.
+      - name: Dependencies
+        run: cargo deny --locked check bans licenses sources
+
+      # One instrumented run for the tests and the coverage; doctests apart, nextest skips them
+      - name: Tests
+        run: |
+          cargo llvm-cov nextest --locked --workspace --lcov --output-path lcov.info
+          cargo test --locked --workspace --doc
+          {
+            echo '### Rust coverage'
+            echo '```'
+            cargo llvm-cov report --summary-only
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # The tests rewrote packages/contracts/bindings (ts-rs): the committed TypeScript must match.
+      # --intent-to-add: a binding the tests created, and nobody committed, shows in the diff.
+      - name: Contracts
+        run: |
+          git add --intent-to-add packages/contracts/bindings
+          git diff --exit-code -- packages/contracts/bindings
+
+      # Component boundaries (ADR-0014), from the crate graph
+      - name: Architecture
+        run: bash tests/architecture/boundaries.sh
+
+      # Reference solutions of the ADR-0018 spike against the example exercises; removed with the
+      # spike. The runner already has Python 3, Java and Node.js.
+      - name: Reference solutions
+        run: bash spikes/build-or-reuse/check.sh
+
+  # Mutants the tests do not kill, in the lines a pull request changed. A report, not a gate.
+  mutants:
+    needs: changes
+    if: github.event_name == 'pull_request' && needs.changes.outputs.rust == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    env:
+      SQLX_OFFLINE: "true"
+    steps:
+      - uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          save-if: false
+
+      - uses: taiki-e/install-action@3a3daafd3b7f23b8f65d9f5ba2db203fb59b79e2 # v2.90.2
+        with:
+          tool: cargo-mutants@27.1.0,cargo-nextest@0.9.151
+
+      - name: Mutants
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          git diff "$BASE...HEAD" -- '*.rs' > "$RUNNER_TEMP/diff"
+          # Exits non-zero when a mutant survives: the summary below is the report
+          cargo mutants --in-diff "$RUNNER_TEMP/diff" --test-tool nextest --no-shuffle || true
+          {
+            echo '### Mutants the tests missed'
+            echo '```'
+            cat mutants.out/missed.txt 2>/dev/null || echo 'none'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # The web checks run inside apps/web/Dockerfile: building the images checks the page
+  images:
+    needs: changes
+    if: needs.changes.outputs.images == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        app: ${{ fromJSON(needs.changes.outputs.apps) }}
+    steps:
+      - uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/image
+        with:
+          app: ${{ matrix.app }}
+
+  # The same environment as locally: PostgreSQL, LDAP, gVisor and nginx (tests/ci/integration.sh)
+  integration:
+    needs: changes
+    if: needs.changes.outputs.integration == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
+        with:
+          egress-policy: audit
+
+      # The release tags: the contracts are compared with the previous release's
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: devcontainers/ci@513af61f4de4f75d37e4438f184ba4358f0fc1ca # v0.3
+        with:
+          push: never
+          runCmd: bash tests/ci/integration.sh
+
+  # A real deployment with site.yml onto Ubuntu containers, twice: the second run changes nothing.
+  # The LTS the ÉTS VMs run today on pull requests, both on main and nightly (nightly.yml).
+  deploy:
+    needs: changes
+    if: needs.changes.outputs.deploy == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        ubuntu: ${{ fromJSON(github.event_name == 'pull_request' && '["24.04"]' || '["24.04", "26.04"]') }}
+    steps:
+      - uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: devcontainers/ci@513af61f4de4f75d37e4438f184ba4358f0fc1ca # v0.3
+        env:
+          UBUNTU: ${{ matrix.ubuntu }}
+        with:
+          push: never
+          env: UBUNTU
+          runCmd: bash tests/deploy/run.sh "$UBUNTU"
+
+  # Same versions as the dev container, from its requirements file
+  ansible:
+    needs: changes
+    if: needs.changes.outputs.ansible == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: infrastructure/ansible
+    steps:
+      - uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install
+        run: |
+          pip install -r ../../.devcontainer/requirements.txt
+          ansible-galaxy collection install -r requirements.yml
+
+      - name: Lint
+        run: ansible-lint --profile production
+
+      # Every playbook, so a new one is checked without being listed here
+      - name: Syntax
+        run: for playbook in *.yml; do [ "$playbook" = requirements.yml ] || ansible-playbook -i inventory/local --syntax-check "$playbook"; done
+
+  docs:
+    needs: changes
+    if: needs.changes.outputs.docs == 'true'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/_docs.yml
+
+  # Dependencies a pull request adds: known vulnerabilities and licenses, npm and Cargo alike
+  dependency-review:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
+        with:
+          egress-policy: audit
+
+      - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          fail-on-severity: high
+          # The same list as deny.toml, for npm too
+          allow-licenses: >-
+            MIT, Apache-2.0, Apache-2.0 WITH LLVM-exception, BSD-2-Clause, BSD-3-Clause,
+            ISC, Zlib, Unicode-3.0, BSL-1.0, CC0-1.0, MPL-2.0
+
+  # The only required check. Skipped jobs pass: their area did not change.
+  gate:
+    if: always()
+    needs: [changes, lint, policy, rust, images, integration, deploy, ansible, docs, dependency-review]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          jq -r 'to_entries[] | "\(.value.result)\t\(.key)"' <<<"$NEEDS"
+          jq -e 'all(.[]; .result == "success" or .result == "skipped")' <<<"$NEEDS" >/dev/null

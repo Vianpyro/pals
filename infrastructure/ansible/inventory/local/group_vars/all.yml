@@ -5,7 +5,7 @@
 log791_version: test
 log791_image_prefix: log795
 log791_verify_attestation: false
-log791_repository: Vianpyro/LOG795
+log791_repository: Vianpyro/pals
 
 # A git repository run.sh makes from examples/content
 log791_courses:

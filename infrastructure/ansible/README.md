@@ -67,6 +67,9 @@ The dev container works. Otherwise, a Linux machine with:
 | Publish a course's new content | Change the course's `version`, then run `site.yml`. Nothing restarts. |
 | Replace a course's roster | `ansible-playbook -i inventory/ets enroll.yml -e course=log200 -e roster=roster.csv` (CSV `account,role`; whoever is missing loses their role) |
 | Check what would change | `ansible-playbook -i inventory/ets site.yml --check --diff` |
+| Check that nothing drifted | `bash drift.sh`: the same check, which fails if any VM differs from `site.yml` |
+| Before an exam period | `ansible-playbook -i inventory/ets pre-exam.yml`: stops the automatic upgrades, pulls every pack image, then checks disk space, the judges, last night's backup and the API |
+| After an exam period | `ansible-playbook -i inventory/ets post-exam.yml`: turns the automatic upgrades back on |
 
 The API migrates the database before it restarts. The judges restart afterwards: a job stopped halfway is taken again once its lease expires (ADR-0001).
 
@@ -77,3 +80,8 @@ The API migrates the database before it restarts. The judges restart afterwards:
 2. It deploys `site.yml` twice onto three Ubuntu containers, and fails if the second run changes anything.
 3. It enrolls a roster with `enroll.yml`.
 4. It has a submission judged through nginx.
+5. It restores the nightly backup into a scratch database and compares its rows.
+6. It fails if the `systemd-analyze security` exposure of the API or the judge gets worse.
+7. It runs `drift.sh`, `pre-exam.yml` and `post-exam.yml`.
+
+CI runs it on Ubuntu 24.04 when a change concerns it, and nightly on 24.04 and 26.04.

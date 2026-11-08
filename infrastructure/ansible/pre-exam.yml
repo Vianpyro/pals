@@ -1,0 +1,98 @@
+---
+# Before an exam period, from the operator's machine: the platform holds still and is checked.
+#   ansible-playbook -i inventory/ets pre-exam.yml
+# post-exam.yml undoes what this changes. Rerunning it changes nothing.
+#
+# Still by hand, until the features exist:
+# - raise the floor of judges per VM (ADR-0021, with the scaler);
+# - test the database failover (ADR-0010, with the standby).
+
+- name: No VM upgrades itself during the exam (ADR-0006)
+  hosts: all
+  become: true
+  tasks:
+    # A security fix applied mid-exam can restart a service; post-exam.yml turns them back on
+    - name: Stop the automatic upgrades
+      ansible.builtin.systemd_service:
+        name: "{{ item }}"
+        state: stopped
+        masked: true
+      loop: [apt-daily.timer, apt-daily-upgrade.timer]
+
+    # df rather than the mount facts, which a container's overlay root does not show
+    - name: Read the free space on /
+      ansible.builtin.command: df --output=avail --block-size=1 /
+      register: exam_free
+      changed_when: false
+      check_mode: false
+
+    - name: Check the free space on /
+      ansible.builtin.assert:
+        that: exam_free.stdout_lines[-1] | int > 5 * 1024 ** 3
+        fail_msg: Less than 5 GB free on /, where submissions, images and logs grow during an exam
+        quiet: true
+
+- name: Judges have every pack's image and run (ADR-0013)
+  hosts: judge
+  become: true
+  tasks:
+    # By digest, from the packs the judge was deployed with: never pulled during an exam
+    - name: Read the pack images
+      ansible.builtin.shell: set -o pipefail && sed -n 's/^image = "\(.*\)"$/\1/p' {{ log791_packs_dir }}/*/pack.toml | sort -u
+      args:
+        executable: /bin/bash
+      register: exam_pack_images
+      changed_when: false
+
+    - name: Pull the missing pack images
+      ansible.builtin.command: docker pull {{ item }}
+      loop: "{{ exam_pack_images.stdout_lines }}"
+      register: exam_pulled
+      changed_when: "'Downloaded newer image' in exam_pulled.stdout"
+
+    - name: Read the services' states
+      ansible.builtin.service_facts:
+
+    # Whatever instances the judge role started (judge_instances): one stopped is one fewer
+    - name: Check that every judge runs
+      ansible.builtin.assert:
+        that:
+          - exam_judges | length > 0
+          - exam_judges | rejectattr('state', 'equalto', 'running') | list | length == 0
+        fail_msg: "Judges not running: {{ exam_judges | rejectattr('state', 'equalto', 'running') | map(attribute='name') | list }}"
+        quiet: true
+      vars:
+        # Instances only: log791-judge@.service, the template itself, never runs
+        exam_judges: "{{ ansible_facts['services'].values() | selectattr('name', 'match', 'log791-judge@.+\\.service$') | list }}"
+
+- name: The database has a fresh backup that restores (ADR-0010)
+  hosts: db
+  become: true
+  tasks:
+    - name: Find last night's dump
+      ansible.builtin.find:
+        paths: /var/backups/log791
+        patterns: "*.dump"
+        age: -1d
+      register: exam_dumps
+
+    - name: Check that there is one
+      ansible.builtin.assert:
+        that: exam_dumps.matched > 0
+        fail_msg: No dump in /var/backups/log791 younger than a day; start log791-backup.service
+        quiet: true
+
+    # Reads the whole archive's table of contents: a truncated dump fails here
+    - name: Check that it reads
+      ansible.builtin.command:
+        argv: [pg_restore, --list, "{{ (exam_dumps.files | sort(attribute='mtime') | last).path }}"]
+      changed_when: false
+
+- name: Students reach the page and the API
+  hosts: web
+  become: true
+  tasks:
+    - name: Ask the API through nginx
+      ansible.builtin.uri:
+        url: https://localhost/api/health
+        validate_certs: false

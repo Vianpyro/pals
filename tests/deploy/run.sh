@@ -78,3 +78,48 @@ case "$run" in
   *'"passed":true'*) echo "ok    deployed on Ubuntu $ubuntu: idempotent, and a submission was judged" ;;
   *) echo "FAIL  the submission was not judged as passed" >&2; exit 1 ;;
 esac
+
+# A backup nobody restored is not a backup: tonight's dump, restored apart, holds the same rows
+echo "Restoring the nightly backup into a scratch database"
+docker exec log791-test-db systemctl start log791-backup.service
+counts='SELECT (SELECT count(*) FROM jobs) || '"'"' '"'"' || (SELECT count(*) FROM job_cases) || '"'"' '"'"' || (SELECT count(*) FROM course_roles)'
+docker exec log791-test-db sudo -u postgres sh -euc '
+  dump=$(ls -t /var/backups/log791/*.dump | head -1)
+  dropdb --if-exists log791_restore
+  createdb log791_restore
+  pg_restore --exit-on-error --dbname=log791_restore "$dump"' >/dev/null
+live=$(docker exec log791-test-db sudo -u postgres psql -Atc "$counts" log791)
+restored=$(docker exec log791-test-db sudo -u postgres psql -Atc "$counts" log791_restore)
+if [ "$live" != "$restored" ] || [ "${live%% *}" = 0 ]; then
+  echo "FAIL  the restored backup holds '$restored' (jobs, cases, roles), the database '$live'" >&2
+  exit 1
+fi
+echo "ok    the nightly backup restores: $restored (jobs, cases, roles)"
+
+# The services' sandboxing may not get weaker than it is (ADR-0025): systemd's exposure score, out
+# of 10, lower is safer. Lower a threshold when a change hardens a unit; never raise one.
+security() {
+  local host=$1 unit=$2 threshold=$3 score
+  score=$(docker exec "$host" systemd-analyze security --no-pager "$unit" | sed -n 's/.*exposure level for .*: \([0-9.]*\).*/\1/p')
+  if awk -v s="$score" -v t="$threshold" 'BEGIN { exit !(s <= t) }'; then
+    echo "ok    $unit exposure $score (at most $threshold)"
+  else
+    echo "FAIL  $unit exposure $score, above $threshold: a change weakened its sandboxing" >&2
+    exit 1
+  fi
+}
+security log791-test-web log791-api.service 1.7
+security log791-test-judge log791-judge@1.service 1.8
+
+cd "$root/infrastructure/ansible"
+echo "Checking for drift, as an operator would before an exam"
+bash drift.sh inventory/local
+
+echo "Preparing an exam period, then ending it"
+# is-enabled exits non-zero for a masked unit: its answer is what counts
+upgrades() { docker exec log791-test-judge systemctl is-enabled apt-daily-upgrade.timer || true; }
+ansible-playbook -i inventory/local pre-exam.yml
+[ "$(upgrades)" = masked ] || { echo "FAIL  pre-exam.yml left the automatic upgrades on" >&2; exit 1; }
+ansible-playbook -i inventory/local post-exam.yml
+[ "$(upgrades)" = enabled ] || { echo "FAIL  post-exam.yml did not turn the automatic upgrades back on" >&2; exit 1; }
+echo "ok    pre-exam.yml and post-exam.yml"

@@ -1,0 +1,15 @@
+---
+# After an exam period: undoes pre-exam.yml.
+#   ansible-playbook -i inventory/ets post-exam.yml
+
+- name: VMs upgrade themselves again (ADR-0006)
+  hosts: all
+  become: true
+  tasks:
+    - name: Start the automatic upgrades
+      ansible.builtin.systemd_service:
+        name: "{{ item }}"
+        state: started
+        masked: false
+        enabled: true
+      loop: [apt-daily.timer, apt-daily-upgrade.timer]

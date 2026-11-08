@@ -1,72 +1,30 @@
+# Deploys the documents and the demo from main; ci.yml builds them on pull requests. On every push
+# to main, not a path list: the docs area of .github/paths is the one list of what feeds the site.
 name: Documentation
 
-# Built on pull requests to catch a broken document before merging; deployed from main only.
 on:
   push:
     branches: [main]
-    paths: &docs
-      - docs/**
-      - report/**
-      - site/**
-      - apps/web/**
-      - packages/contracts/**
-      - packages/ui/**
-      - examples/**
-      - package-lock.json
-      - .devcontainer/Dockerfile
-      - .github/workflows/pages.yml
-  pull_request:
-    paths: *docs
   workflow_dispatch:
 
-permissions:
-  contents: read
+permissions: {}
 
-# Per ref, so a pull request never cancels a deployment from main.
 concurrency:
-  group: pages-${{ github.ref }}
-  cancel-in-progress: true
+  group: pages
+  cancel-in-progress: false
 
 jobs:
   build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-
-      # Same version as the dev container, read from its Dockerfile: the HTML export
-      # changes from one version to the next.
-      - name: Install Typst
-        run: |
-          TYPST_VERSION=$(sed -n 's/^ARG TYPST_VERSION=//p' .devcontainer/Dockerfile)
-          echo "TYPST_VERSION=$TYPST_VERSION" >> "$GITHUB_ENV"
-          curl -fsSL "https://github.com/typst/typst/releases/download/v${TYPST_VERSION}/typst-x86_64-unknown-linux-musl.tar.xz" \
-            | tar -xJ --strip-components=1 -C /usr/local/bin typst-x86_64-unknown-linux-musl/typst
-          typst --version
-
-      # @preview packages (merman) are downloaded on the first build.
-      - uses: actions/cache@v6
-        with:
-          path: ~/.cache/typst
-          key: typst-packages-${{ env.TYPST_VERSION }}-${{ hashFiles('**/*.typ') }}
-          restore-keys: typst-packages-${{ env.TYPST_VERSION }}-
-
-      - name: Build
-        run: sh site/build.sh
-
-      # npm runs only in the image's build stage, which holds no secret (spec D8). After site/build.sh,
-      # which empties _site: a deployment replaces the whole site, so the demo goes out with the documents.
-      - name: Build the demo
-        run: docker build --file apps/web/Dockerfile --target demo --output _site/demo .
-
-      - if: github.event_name != 'pull_request'
-        uses: actions/upload-pages-artifact@v5
-        with:
-          path: _site
+    permissions:
+      contents: read
+    uses: ./.github/workflows/_docs.yml
+    with:
+      upload: true
 
   deploy:
     needs: build
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     # Here only: the job that builds runs third-party code and must not hold them
     permissions:
       pages: write
@@ -75,5 +33,9 @@ jobs:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
+      - uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
+        with:
+          egress-policy: audit
+
       - id: deploy
-        uses: actions/deploy-pages@v5
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
