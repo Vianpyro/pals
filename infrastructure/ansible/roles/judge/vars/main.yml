@@ -1,7 +1,0 @@
----
-# Each pack names its image in pack.toml, read on the operator's machine from the judge's image
-judge_pack_images: >-
-  {{ query('ansible.builtin.fileglob', log791_artifact_dirs.judge ~ '/packs/*/pack.toml')
-     | map('ansible.builtin.file')
-     | map('regex_search', '(?m)^image = "(.+)"$', '\1')
-     | map('first') | unique | list }}

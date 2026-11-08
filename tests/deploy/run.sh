@@ -76,7 +76,11 @@ done
 echo "$run"
 case "$run" in
   *'"passed":true'*) echo "ok    deployed on Ubuntu $ubuntu: idempotent, and a submission was judged" ;;
-  *) echo "FAIL  the submission was not judged as passed" >&2; exit 1 ;;
+  *)
+    echo "FAIL  the submission was not judged as passed; the judge's log:" >&2
+    docker exec log791-test-judge journalctl --unit 'log791-judge@*' --no-pager --lines 50 >&2 || true
+    exit 1
+    ;;
 esac
 
 # A backup nobody restored is not a backup: tonight's dump, restored apart, holds the same rows

@@ -27,10 +27,21 @@
     directory_mode: "0755"
   notify: Restart the judges
 
-# Never pulled during an exam: a first run would wait for the download (ADR-0013)
+# From the packs just installed, on the VM: the images the judge runs. Not a fileglob on the
+# operator's machine, which globs file names only and found no pack in packs/*/.
+- name: Read the language pack images
+  ansible.builtin.shell: set -o pipefail && sed -n 's/^image = "\(.*\)"$/\1/p' {{ log791_packs_dir }}/*/pack.toml | sort -u
+  args:
+    executable: /bin/bash
+  register: judge_pack_images
+  changed_when: false
+  check_mode: false
+
+# The judge never pulls one (docker run --pull never): a first run would wait for the download
+# during an exam (ADR-0013)
 - name: Preload the language pack images
   ansible.builtin.command: docker pull {{ item }}
-  loop: "{{ judge_pack_images }}"
+  loop: "{{ judge_pack_images.stdout_lines }}"
   register: judge_pulled
   changed_when: "'Downloaded newer image' in judge_pulled.stdout"
 
