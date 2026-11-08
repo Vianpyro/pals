@@ -10,13 +10,15 @@ services:
       - ..:/workspaces/LOG791:cached
       # Thousands of small files: slow on the bind mount, like the Cargo target below
       - node_modules:/workspaces/LOG791/node_modules
+      - tls:/tls:ro
     environment:
       # Outside the bind mount: many small files there are slow under Docker Desktop,
       # and builds from the host would invalidate the container's.
       CARGO_TARGET_DIR: /home/vscode/target
       DATABASE_URL: postgresql://log791:log791@postgres:5432/log791
-      # Plain LDAP on the Compose network only; the ÉTS directory is reached over LDAPS (ADR-0017).
-      LDAP_URL: ldap://ldap:3890
+      # LDAPS with the directory's CA pinned, as the API requires (ADR-0017)
+      LDAP_URL: ldaps://ldap:6360
+      LDAP_CA_FILE: /tls/ldap-ca.crt
       LDAP_BASE_DN: dc=log791,dc=local
       # uid here; probably sAMAccountName on the ÉTS Active Directory.
       LDAP_USER_ATTRIBUTE: uid
@@ -46,10 +48,19 @@ services:
       LLDAP_LDAP_USER_PASS: log791-admin
       LLDAP_JWT_SECRET: dev-only-jwt-secret
       LLDAP_KEY_SEED: dev-only-key-seed
+      LLDAP_LDAPS_OPTIONS__ENABLED: "true"
+      LLDAP_LDAPS_OPTIONS__PORT: "6360"
+      LLDAP_LDAPS_OPTIONS__CERT_FILE: /tls/ldap.crt
+      LLDAP_LDAPS_OPTIONS__KEY_FILE: /tls/ldap.key
+    volumes:
+      - tls:/tls:ro
     healthcheck:
       test: ["CMD", "/app/lldap", "healthcheck", "--config-file", "/data/lldap_config.toml"]
       interval: 2s
       retries: 30
+    depends_on:
+      tls:
+        condition: service_completed_successfully
 
   # Creates the test accounts of ldap/ once lldap answers, then exits.
   ldap-seed:
@@ -82,18 +93,30 @@ services:
       tls:
         condition: service_completed_successfully
 
-  # A self-signed certificate for https://localhost, made once: WebKit drops a Secure cookie over
-  # plain HTTP even on localhost, and the session cookie is __Host- (Secure). The postgres image
-  # is the one here that ships openssl.
+  # Certificates made once. A self-signed one for https://localhost: WebKit drops a Secure cookie over
+  # plain HTTP even on localhost, and the session cookie is __Host- (Secure). A CA and the directory's
+  # certificate it signs, so the API pins a CA here as it does the ÉTS one (ADR-0017); the key is
+  # readable for lldap, a development value like every password here. The postgres image is the
+  # one here that ships openssl.
   tls:
     image: postgres:18.6
     entrypoint:
       - sh
       - -c
-      - >-
-        [ -f /tls/localhost.crt ] || openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256
-        -nodes -days 3650 -subj /CN=localhost -addext subjectAltName=DNS:localhost,IP:127.0.0.1
-        -keyout /tls/localhost.key -out /tls/localhost.crt
+      - |
+        set -e
+        [ -f /tls/localhost.crt ] || openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 \
+          -nodes -days 3650 -subj /CN=localhost -addext subjectAltName=DNS:localhost,IP:127.0.0.1 \
+          -keyout /tls/localhost.key -out /tls/localhost.crt
+        if [ ! -f /tls/ldap.crt ]; then
+          openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes -days 3650 \
+            -subj "/CN=LOG791 dev CA" -keyout /tls/ldap-ca.key -out /tls/ldap-ca.crt
+          openssl req -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes -subj /CN=ldap \
+            -addext subjectAltName=DNS:ldap -keyout /tls/ldap.key -out /tls/ldap.csr
+          openssl x509 -req -in /tls/ldap.csr -CA /tls/ldap-ca.crt -CAkey /tls/ldap-ca.key \
+            -CAcreateserial -days 3650 -copy_extensions copyall -out /tls/ldap.crt
+          chmod 644 /tls/ldap.key
+        fi
     volumes:
       - tls:/tls
     restart: "no"

@@ -8,8 +8,11 @@
       - api_ldap_url is defined and api_ldap_url is match('ldaps://')
       - api_ldap_base_dn is defined
       - api_ldap_bind_dn is defined
+      - api_ldap_ca_certificate is defined and 'BEGIN CERTIFICATE' in api_ldap_ca_certificate
       - vault_ldap_bind_password is defined
-    fail_msg: "Set api_ldap_url (ldaps:// only), api_ldap_base_dn, api_ldap_bind_dn and vault_ldap_bind_password"
+    fail_msg: >-
+      Set api_ldap_url (ldaps:// only), api_ldap_base_dn, api_ldap_bind_dn, api_ldap_ca_certificate (PEM)
+      and vault_ldap_bind_password
 
 - name: Create the API's user
   ansible.builtin.user:
@@ -23,6 +26,14 @@
     src: "{{ log791_artifact_dirs.api }}/api"
     dest: "{{ log791_bin }}/api"
     mode: "0755"
+  notify: Restart the API
+
+# Pinned: the API trusts this CA for the directory, and no other (ADR-0017)
+- name: Install the directory's CA
+  ansible.builtin.copy:
+    content: "{{ api_ldap_ca_certificate }}"
+    dest: "{{ log791_config }}/ldap-ca.pem"
+    mode: "0644"
   notify: Restart the API
 
 - name: Configure the API

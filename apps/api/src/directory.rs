@@ -1,12 +1,18 @@
-//! Sign-in by an LDAP bind against the insitution's directory (ADR-0017)
+//! Sign-in by an LDAP bind against the institution's directory over LDAPS only (ADR-0017)
 
-use std::{env, time::Duration};
+use std::{env, error::Error, sync::Arc, time::Duration};
 
 use contracts::Identity;
-use ldap3::{Ldap, LdapConnAsync, LdapError, ResultEntry, Scope, SearchEntry, ldap_escape};
+use ldap3::{
+    Ldap, LdapConnAsync, LdapConnSettings, LdapError, ResultEntry, Scope, SearchEntry, ldap_escape,
+};
+use rustls::{
+    ClientConfig, RootCertStore,
+    pki_types::{CertificateDer, pem::PemObject},
+};
 use tokio::time;
 
-// For the whole sing-in: a directory that does not answer refuses it instead of holding the request
+// For the whole sign-in: a directory that does not answer refuses it instead of holding the request
 const TIMEOUT: Duration = Duration::from_secs(5);
 // Bind result codes (RFC 4511, appendix A)
 const SUCCESS: u32 = 0;
@@ -17,6 +23,8 @@ const EMAIL: &str = "mail";
 // No Debug: it holds the service account's password
 pub(super) struct Directory {
     url: String,
+    // Trusts the directory's own CA only, never the system's (ADR-0017)
+    tls: Arc<ClientConfig>,
     base_dn: String,
     user_attribute: String,
     bind_dn: String,
@@ -37,9 +45,10 @@ impl From<LdapError> for SignInError {
 }
 
 impl Directory {
-    pub(super) fn from_env() -> Result<Self, env::VarError> {
+    pub(super) fn from_env() -> Result<Self, Box<dyn Error>> {
         Ok(Self {
-            url: env::var("LDAP_URL")?,
+            url: ldaps(env::var("LDAP_URL")?)?,
+            tls: pinned(&env::var("LDAP_CA_FILE")?)?,
             base_dn: env::var("LDAP_BASE_DN")?,
             user_attribute: env::var("LDAP_USER_ATTRIBUTE")?,
             bind_dn: env::var("LDAP_BIND_DN")?,
@@ -49,8 +58,12 @@ impl Directory {
 
     #[cfg(test)]
     pub(super) fn unreachable() -> Directory {
+        let tls = ClientConfig::builder()
+            .with_root_certificates(RootCertStore::empty())
+            .with_no_client_auth();
         Directory {
-            url: "ldap://127.0.0.1:1".to_string(),
+            url: "ldaps://127.0.0.1:1".to_string(),
+            tls: Arc::new(tls),
             base_dn: String::new(),
             user_attribute: "uid".to_string(),
             bind_dn: String::new(),
@@ -70,7 +83,8 @@ impl Directory {
     }
 
     async fn authenticate(&self, id: &str, password: &str) -> Result<Identity, SignInError> {
-        let (connection, mut ldap) = LdapConnAsync::new(&self.url).await?;
+        let settings = LdapConnSettings::new().set_config(Arc::clone(&self.tls));
+        let (connection, mut ldap) = LdapConnAsync::with_settings(settings, &self.url).await?;
         ldap3::drive!(connection);
         ldap.simple_bind(&self.bind_dn, &self.bind_password)
             .await?
@@ -101,6 +115,33 @@ impl Directory {
     }
 }
 
+// A password must never cross the network in clear (ADR-0017)
+fn ldaps(url: String) -> Result<String, String> {
+    if url.starts_with("ldaps://") {
+        Ok(url)
+    } else {
+        Err(format!("LDAP_URL must start with `ldaps://`, not {url}"))
+    }
+}
+
+fn pinned(ca_file: &str) -> Result<Arc<ClientConfig>, Box<dyn Error>> {
+    let mut roots = RootCertStore::empty();
+    let certificates =
+        CertificateDer::pem_file_iter(ca_file).map_err(|error| format!("{ca_file}: {error}"))?;
+    for certificate in certificates {
+        roots.add(certificate?)?;
+    }
+    if roots.is_empty() {
+        return Err(format!("{ca_file}: no certificate").into());
+    }
+
+    let config = ClientConfig::builder()
+        .with_root_certificates(roots)
+        .with_no_client_auth();
+
+    Ok(Arc::new(config))
+}
+
 fn password_verdict(rc: u32) -> Result<(), SignInError> {
     match rc {
         SUCCESS => Ok(()),
@@ -124,6 +165,11 @@ mod tests {
         Directory::from_env().unwrap()
     }
 
+    // A CA that signed nothing the tests reach
+    fn unrelated_ca() -> String {
+        format!("{}/fixtures/unrelated-ca.pem", env!("CARGO_MANIFEST_DIR"))
+    }
+
     #[test]
     fn right_password_passes() {
         assert_eq!(password_verdict(SUCCESS), Ok(()));
@@ -144,6 +190,33 @@ mod tests {
             password_verdict(unwilling_to_perform),
             Err(SignInError::Unavailable)
         );
+    }
+
+    #[test]
+    fn ldaps_url_is_kept() {
+        let url = "ldaps://ldap:6360".to_string();
+        assert_eq!(ldaps(url.clone()), Ok(url));
+    }
+
+    #[test]
+    fn ldap_url_is_refused() {
+        assert!(ldaps("ldap://ldap:3890".to_string()).is_err());
+    }
+
+    #[test]
+    fn ca_file_is_read() {
+        assert!(pinned(&unrelated_ca()).is_ok());
+    }
+
+    #[test]
+    fn file_without_ca_is_refused() {
+        let manifest = format!("{}/Cargo.toml", env!("CARGO_MANIFEST_DIR"));
+        assert!(pinned(&manifest).is_err());
+    }
+
+    #[test]
+    fn missing_ca_file_is_refused() {
+        assert!(pinned("/nonexistent/ca.pem").is_err());
     }
 
     #[tokio::test]
@@ -201,6 +274,19 @@ mod tests {
         assert_eq!(
             local().sign_in("etudiant1*", PASSWORD).await,
             Err(SignInError::Refused)
+        );
+    }
+
+    #[tokio::test]
+    #[ignore = "needs LDAP"]
+    async fn other_ca_is_unavailable() {
+        let directory = Directory {
+            tls: pinned(&unrelated_ca()).unwrap(),
+            ..local()
+        };
+        assert_eq!(
+            directory.sign_in("etudiant1", PASSWORD).await,
+            Err(SignInError::Unavailable)
         );
     }
 }

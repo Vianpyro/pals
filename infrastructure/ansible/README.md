@@ -35,7 +35,7 @@ The dev container works. Otherwise, a Linux machine with:
    - `log791_version`, an image tag such as `0.1.46`;
    - the courses, each at a tag or commit of its content repository;
    - the server name;
-   - the directory settings.
+   - the directory settings: an `ldaps://` URL only, and the CA that signs the directory's certificate, which is the only one the API trusts (ADR-0017).
 3. Create the vault. Use passwords without URL characters, for example from `openssl rand -hex 32`:
 
    ```
@@ -59,8 +59,6 @@ The dev container works. Otherwise, a Linux machine with:
 ## Still open
 
 - **The certificate.** By default (`nginx_tls_source: files`), the certificate and key come from the vault. certbot cannot validate a host reachable only through the VPN over HTTP, and whether the ÉTS terminates TLS itself is still to be confirmed.
-- **LDAPS.** The API role accepts only an `ldaps://` URL (ADR-0017). The API cannot speak LDAPS until `ldap3` is built with TLS, so sign-in does not work yet on the VMs.
-
 ## Everyday operations
 
 | To | Run |

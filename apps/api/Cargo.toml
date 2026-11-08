@@ -11,7 +11,14 @@ content.workspace = true
 contracts.workspace = true
 futures-util = "0.3.34"
 getrandom = "0.4.3"
-ldap3 = { version = "0.12.1", default-features = false }
+ldap3 = { version = "0.12.1", default-features = false, features = [
+    "tls-rustls-ring",
+] }
+rustls = { version = "0.23.46", default-features = false, features = [
+    "ring",
+    "std",
+    "tls12",
+] }
 sqlx.workspace = true
 tokio = { version = "1.53.2", features = [
     "macros",
