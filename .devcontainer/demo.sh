@@ -18,7 +18,8 @@ for pack in packs/languages/*/pack.toml; do
   docker image inspect "$image" >/dev/null 2>&1 || docker pull -q "$image" >/dev/null
 done
 
-cargo build -p api -p judge -p publisher
+# From .sqlx/: the queries cannot be checked against a database the binary has yet to migrate
+SQLX_OFFLINE=true cargo build -p api -p judge -p publisher
 # The page nginx serves at localhost:80
 npm run build -w apps/web
 
