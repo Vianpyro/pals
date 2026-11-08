@@ -554,7 +554,7 @@ mod tests {
     async fn listening(pool: &PgPool) {
         for _ in 0..100 {
             let listeners: i64 = sqlx::query_scalar(
-                r#"SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND query LIKE '%LISTEN "cases"%' AND pid <> pg_backend_pid()"#,
+                r#"SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND state = 'idle' AND query LIKE 'LISTEN %"cases"%'"#,
             )
             .fetch_one(pool)
             .await
