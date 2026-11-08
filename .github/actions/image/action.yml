@@ -18,20 +18,28 @@ inputs:
     description: Read and write the GitHub Actions cache ("false" for a release, built from nothing)
     default: "true"
 
+outputs:
+  epoch:
+    description: The commit's date, as SOURCE_DATE_EPOCH for a later build of the same image
+    value: ${{ steps.date.outputs.epoch }}
+
 runs:
   using: composite
   steps:
-    # BuildKit dates what it writes at the commit, not at the build (reproducible builds), here and
-    # in the publishing build of images.yml that follows in the same job
-    - name: Build date
+    # BuildKit dates what it writes at the commit, not at the build (reproducible builds). An output,
+    # not GITHUB_ENV: no later step's environment can be rewritten from here (zizmor github-env).
+    - id: date
+      name: Build date
       shell: bash
-      run: echo "SOURCE_DATE_EPOCH=$(git log -1 --format=%ct)" >> "$GITHUB_ENV"
+      run: echo "epoch=$(git log -1 --format=%ct)" >> "$GITHUB_OUTPUT"
 
     - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
     # The context is the repository root, so an app can copy packages/. The web image runs the
     # web checks while it builds (apps/web/Dockerfile).
     - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+      env:
+        SOURCE_DATE_EPOCH: ${{ steps.date.outputs.epoch }}
       with:
         context: .
         file: apps/${{ inputs.app }}/Dockerfile

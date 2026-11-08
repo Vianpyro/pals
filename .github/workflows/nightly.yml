@@ -80,10 +80,8 @@ jobs:
       matrix:
         ubuntu: ["24.04", "26.04"]
     steps:
-      - uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
-        with:
-          egress-policy: audit
-
+      # No harden-runner here: its DNS proxy leaves the dev container's compose network unable to
+      # resolve any name (index.crates.io), and the dev container then fails to start.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false

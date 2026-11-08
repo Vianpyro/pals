@@ -72,7 +72,8 @@ jobs:
       # Built and scanned before anything is pushed. A release is never published with a
       # vulnerability that has a fix, and is built from nothing: a cache entry a pull request could
       # have written never reaches it. main only reports, from the cache.
-      - uses: ./.github/actions/image
+      - id: image
+        uses: ./.github/actions/image
         with:
           app: ${{ matrix.app }}
           fail-on: ${{ env.RELEASE == 'true' && 'HIGH,CRITICAL' || '' }}
@@ -101,9 +102,11 @@ jobs:
             type=semver,pattern={{version}}
 
       # From the builder's cache of the build above. Timestamps rewritten to the commit's
-      # (SOURCE_DATE_EPOCH, set by the composite action): the same commit gives the same layers.
+      # (SOURCE_DATE_EPOCH): the same commit gives the same layers.
       - id: build
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        env:
+          SOURCE_DATE_EPOCH: ${{ steps.image.outputs.epoch }}
         with:
           context: .
           file: apps/${{ matrix.app }}/Dockerfile

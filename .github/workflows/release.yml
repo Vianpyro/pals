@@ -32,8 +32,9 @@ jobs:
         with:
           egress-policy: audit
 
-      # The credentials stay: release.sh pushes the bump commit. Nothing else runs in this job.
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1 zizmor: ignore[artipacked]
+      # The credentials stay: release.sh pushes the bump commit. Nothing else runs in this job
+      # (.github/zizmor.yml).
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 0
