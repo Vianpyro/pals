@@ -1,6 +1,7 @@
 //! Judging of a submission in a gVisor sandbox (ADR-0002, ADR-0018)
 
 mod cases;
+mod choice;
 mod errors;
 mod judging;
 mod kind;
@@ -14,6 +15,7 @@ mod submission;
 mod verdict;
 
 pub use cases::{Case, Visibility, read_cases};
+pub use choice::{AnswerError, ChoiceKey, Selection, grade};
 pub use judging::judge_cases;
 pub use kind::JobKind;
 pub use pack::{Pack, read_packs};
