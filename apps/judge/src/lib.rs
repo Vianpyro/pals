@@ -15,7 +15,7 @@ mod submission;
 mod verdict;
 
 pub use cases::{Case, Visibility, read_cases};
-pub use choice::{AnswerError, ChoiceKey, Selection, grade};
+pub use choice::{AnswerError, ChoiceKey, Selection, grade, read_choice_key};
 pub use judging::judge_cases;
 pub use kind::JobKind;
 pub use pack::{Pack, read_packs};
