@@ -62,7 +62,7 @@ test("everything but signing in asks for a session", async () => {
     assert.deepEqual(await api.statement(COURSE, "sum"), refused(401));
     assert.deepEqual(await api.history(COURSE, "sum"), refused(401));
     assert.deepEqual(await api.draft(COURSE, "sum"), refused(401));
-    assert.deepEqual(await api.saveDraft(COURSE, "sum", { base: 0, source: "" }), refused(401));
+    assert.deepEqual(await api.saveDraft(COURSE, "sum", { base: 0, source: "", language_pack: "python" }), refused(401));
     assert.deepEqual(await api.submit(submission), refused(401));
     assert.deepEqual(await api.progress("run-1"), refused(401));
 });
@@ -117,8 +117,8 @@ test("an unknown course or exercise is not found", async () => {
 test("a draft starts empty at revision 0 and each write adds a revision", async () => {
     const { api } = await signedIn();
     assert.deepEqual(value(await api.draft(COURSE, "sum")), { revision: 0, source: "" });
-    assert.deepEqual(value(await api.saveDraft(COURSE, "sum", { base: 0, source: "a" })), { kind: "saved", revision: 1 });
-    assert.deepEqual(value(await api.saveDraft(COURSE, "sum", { base: 1, source: "b" })), { kind: "saved", revision: 2 });
+    assert.deepEqual(value(await api.saveDraft(COURSE, "sum", { base: 0, source: "a", language_pack: "python" })), { kind: "saved", revision: 1 });
+    assert.deepEqual(value(await api.saveDraft(COURSE, "sum", { base: 1, source: "b", language_pack: "python" })), { kind: "saved", revision: 2 });
     assert.deepEqual(value(await api.draft(COURSE, "sum")), { revision: 2, source: "b" });
 });
 
@@ -126,9 +126,9 @@ test("a write based on an older revision is refused with the current draft, as f
     const storage = memoryStorage();
     const tab = await signedIn({ storage });
     const other = server({ storage });
-    await other.api.saveDraft(COURSE, "sum", { base: 0, source: "theirs" });
+    await other.api.saveDraft(COURSE, "sum", { base: 0, source: "theirs", language_pack: "python" });
 
-    const save = value(await tab.api.saveDraft(COURSE, "sum", { base: 0, source: "mine" }));
+    const save = value(await tab.api.saveDraft(COURSE, "sum", { base: 0, source: "mine", language_pack: "python" }));
     assert.deepEqual(save, { kind: "conflict", current: { revision: 1, source: "theirs" } });
     assert.deepEqual(value(await tab.api.draft(COURSE, "sum")), { revision: 1, source: "theirs" });
 });
@@ -139,13 +139,13 @@ test("a draft the browser has no room for is refused, not lost silently", async 
     storage.setItem = () => {
         throw new DOMException("full", "QuotaExceededError");
     };
-    assert.deepEqual(await api.saveDraft(COURSE, "sum", { base: 0, source: "a" }), refused(422));
+    assert.deepEqual(await api.saveDraft(COURSE, "sum", { base: 0, source: "a", language_pack: "python" }), refused(422));
 });
 
 test("each student has their own drafts and runs", async () => {
     const storage = memoryStorage();
     const first = await signedIn({ storage });
-    await first.api.saveDraft(COURSE, "sum", { base: 0, source: "mine" });
+    await first.api.saveDraft(COURSE, "sum", { base: 0, source: "mine", language_pack: "python" });
     const followed = follow(first);
     await first.api.submit(submission);
     await followed.done;

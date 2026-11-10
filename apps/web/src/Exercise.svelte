@@ -87,7 +87,7 @@
         // Without the server's copy, from revision 0: a save over the one it holds then shows both (ADR-0038)
         const start = outcome.ok ? outcome.value : { revision: 0, source: "" };
         source = start.source;
-        saver = new Autosave(start, (write) => saveDraft(course, id, write), showDraftState);
+        saver = new Autosave(start, (write) => saveDraft(course, id, { ...write, language_pack: PACK }), showDraftState);
         loading = false;
     }
 

@@ -6,6 +6,9 @@ import type { Draft } from "@log791/contracts/Draft";
 import type { DraftWrite } from "@log791/contracts/DraftWrite";
 import type { DraftSave, Failure, Outcome } from "@log791/ui/api";
 
+/** What the autosave sends; the page adds the language */
+export type SourceWrite = Omit<DraftWrite, "language_pack">;
+
 /** A write goes 2 s after the last keystroke, and at the latest 10 s after the first unsent one (ADR-0038). */
 export const IDLE_MS = 2000;
 export const MAX_MS = 10_000;
@@ -32,10 +35,10 @@ export class Autosave {
     #closed = false;
     #idle: ReturnType<typeof setTimeout> | undefined;
     #latest: ReturnType<typeof setTimeout> | undefined;
-    #save: (write: DraftWrite) => Promise<Outcome<DraftSave>>;
+    #save: (write: SourceWrite) => Promise<Outcome<DraftSave>>;
     #onState: (state: SaveState) => void;
 
-    constructor(start: Draft, save: (write: DraftWrite) => Promise<Outcome<DraftSave>>, onState: (state: SaveState) => void) {
+    constructor(start: Draft, save: (write: SourceWrite) => Promise<Outcome<DraftSave>>, onState: (state: SaveState) => void) {
         this.#base = start.revision;
         this.#saved = this.#source = start.source;
         this.#save = save;

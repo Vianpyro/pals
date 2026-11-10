@@ -58,18 +58,18 @@ test("signing out reads no body", async () => {
 
 test("a draft is put as JSON on its exercise and answers the revision it became", async () => {
     const sent = serve(Response.json({ revision: 4 }));
-    assert.deepEqual(await saveDraft("log200", "sum", { base: 3, source: "print(1)" }), {
+    assert.deepEqual(await saveDraft("log200", "sum", { base: 3, source: "print(1)", language_pack: "python" }), {
         ok: true,
         value: { kind: "saved", revision: 4 },
     });
     assert.equal(sent[0].method, "PUT");
     assert.equal(sent[0].url, "/api/courses/log200/exercises/sum/draft");
-    assert.deepEqual(JSON.parse(sent[0].body ?? ""), { base: 3, source: "print(1)" });
+    assert.deepEqual(JSON.parse(sent[0].body ?? ""), { base: 3, source: "print(1)", language_pack: "python" });
 });
 
 test("a draft written on a stale revision answers the current one, not a failure", async () => {
     serve(Response.json({ revision: 5, source: "print(2)" }, { status: 409 }));
-    assert.deepEqual(await saveDraft("log200", "sum", { base: 3, source: "print(1)" }), {
+    assert.deepEqual(await saveDraft("log200", "sum", { base: 3, source: "print(1)", language_pack: "python" }), {
         ok: true,
         value: { kind: "conflict", current: { revision: 5, source: "print(2)" } },
     });

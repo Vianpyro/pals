@@ -3,6 +3,8 @@
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
+use crate::Id;
+
 #[derive(Default, Serialize, TS)]
 #[ts(export)]
 pub struct Draft {
@@ -15,6 +17,7 @@ pub struct Draft {
 pub struct DraftWrite {
     pub base: u32,
     pub source: String,
+    pub language_pack: Id,
 }
 
 #[derive(Serialize, TS)]

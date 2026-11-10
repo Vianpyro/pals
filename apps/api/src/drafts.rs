@@ -60,10 +60,11 @@ async fn apply(
 ) -> Result<Option<u32>, StatusCode> {
     sqlx::query_scalar!(
         r#"
-            INSERT INTO drafts (author, course, exercise, revision, source)
-            VALUES ($1, $2::text, $3::text, $4::bigint + 1, $5)
+            INSERT INTO drafts (author, course, exercise, revision, source, language_pack)
+            VALUES ($1, $2::text, $3::text, $4::bigint + 1, $5, $6::text)
             ON CONFLICT (author, course, exercise) DO UPDATE
-                SET revision = excluded.revision, source = excluded.source, saved_at = now()
+                SET revision = excluded.revision, source = excluded.source,
+                    language_pack = excluded.language_pack, saved_at = now()
                 WHERE drafts.revision = $4::bigint
             RETURNING revision
         "#,
@@ -71,7 +72,8 @@ async fn apply(
         course.as_str(),
         exercise.as_str(),
         i64::from(write.base),
-        write.source
+        write.source,
+        write.language_pack.as_str()
     )
     .fetch_optional(pool)
     .await
@@ -126,6 +128,7 @@ mod tests {
         DraftWrite {
             base,
             source: source.to_string(),
+            language_pack: "python".parse().unwrap(),
         }
     }
 

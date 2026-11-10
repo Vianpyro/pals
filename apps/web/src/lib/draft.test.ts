@@ -1,9 +1,8 @@
 import type { Draft } from "@log791/contracts/Draft";
-import type { DraftWrite } from "@log791/contracts/DraftWrite";
 import type { DraftSave, Outcome } from "@log791/ui/api";
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, mock, test } from "node:test";
-import { Autosave, IDLE_MS, MAX_MS, type SaveState } from "./draft.ts";
+import { Autosave, IDLE_MS, MAX_MS, type SaveState, type SourceWrite } from "./draft.ts";
 
 beforeEach(() => mock.timers.enable({ apis: ["setTimeout"] }));
 afterEach(() => mock.timers.reset());
@@ -11,12 +10,12 @@ afterEach(() => mock.timers.reset());
 // Lets what the timers started run to its end; setImmediate is not mocked
 const settle = () => new Promise((resolve) => setImmediate(resolve));
 
-const applied = (write: DraftWrite): Outcome<DraftSave> => ({ ok: true, value: { kind: "saved", revision: write.base + 1 } });
+const applied = (write: SourceWrite): Outcome<DraftSave> => ({ ok: true, value: { kind: "saved", revision: write.base + 1 } });
 const conflict = (current: Draft): Outcome<DraftSave> => ({ ok: true, value: { kind: "conflict", current } });
 
 // The API, applying every write unless `answer` says otherwise; keeps the writes and the states shown
-function server(answer: (write: DraftWrite) => Outcome<DraftSave> | Promise<Outcome<DraftSave>> = applied) {
-    const writes: DraftWrite[] = [];
+function server(answer: (write: SourceWrite) => Outcome<DraftSave> | Promise<Outcome<DraftSave>> = applied) {
+    const writes: SourceWrite[] = [];
     const states: SaveState[] = [];
     return {
         writes,
