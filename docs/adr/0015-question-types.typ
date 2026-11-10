@@ -2,7 +2,7 @@
 
 == ADR-0015 — Question types and mixed assessments <adr-0015>
 
-*Status:* proposed. Applies #adr("0014"). \
+*Status:* proposed. Applies #adr("0014"). Refined by #adr("0043"). \
 *See also:* #arch("purpose-of-the-document")[architecture], sections #arch("question-types")[Question types] and #arch("mixed-assessments")[Mixed assessments].
 
 === Context

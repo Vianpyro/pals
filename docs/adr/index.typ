@@ -52,6 +52,7 @@
   [#adr("0040", body: "0040")], [Precheck and check], [Proposed],
   [#adr("0041", body: "0041")], [Exercises with several source files], [Proposed],
   [#adr("0042", body: "0042")], [Personal tests], [Proposed],
+  [#adr("0043", body: "0043")], [Contest mode], [Proposed],
 )
 
 Relations declared in the status of each ADR: a solid arrow refines, a thick arrow supersedes, a dotted arrow applies, extends or feeds the ADR it points to. ADRs without a declared relation are not shown.
@@ -95,6 +96,7 @@ Relations declared in the status of each ADR: a solid arrow refines, a thick arr
     A0040[0040 Precheck and check]
     A0041[0041 Several source files]
     A0042[0042 Personal tests]
+    A0043[0043 Contest mode]
 
     A0006 ==> A0003
     A0010 --> A0001
@@ -167,6 +169,9 @@ Relations declared in the status of each ADR: a solid arrow refines, a thick arr
     A0041 -.->|applies| A0023
     A0042 -.->|extends| A0008
     A0042 -.->|extends| A0040
+    A0043 --> A0015
+    A0043 -.->|applies| A0014
+    A0043 -.->|applies| A0020
   ",
   document-context: true,
   width: 100%,
@@ -214,3 +219,4 @@ Relations declared in the status of each ADR: a solid arrow refines, a thick arr
 #include "0040-precheck-and-check.typ"
 #include "0041-multiple-source-files.typ"
 #include "0042-personal-tests.typ"
+#include "0043-contest-mode.typ"
