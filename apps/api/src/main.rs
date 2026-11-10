@@ -1530,7 +1530,10 @@ mod tests {
     #[ignore = "needs PostgreSQL"]
     async fn an_oversized_draft_is_rejected(pool: PgPool) {
         let courses = open_sum(&pool, "draft-oversized").await;
-        let write = format!(r#"{{"base":0,"language_pack":"python","source":"{}"}}"#, "x".repeat(MAX_SOURCE + 1));
+        let write = format!(
+            r#"{{"base":0,"language_pack":"python","source":"{}"}}"#,
+            "x".repeat(MAX_SOURCE + 1)
+        );
         assert_eq!(
             put_draft(&pool, courses, &signed_in(&pool).await, write)
                 .await
