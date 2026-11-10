@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE jobs SET state = 'replaced', finished_at = now() WHERE author = $1 AND state = 'waiting' AND kind <> 'final'",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "5ed97b74bb1c14d445eaa391e96cd52d114084da2b871d6c987ad8cdd2e91284"
+}

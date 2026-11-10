@@ -91,6 +91,12 @@ pub async fn fail(connection: &mut PgConnection, job: Uuid) -> sqlx::Result<bool
         .await
 }
 
+pub async fn enqueue_finals(connection: &mut PgConnection) -> sqlx::Result<i32> {
+    sqlx::query_scalar!(r#"SELECT enqueue_finals() AS "queued!""#)
+        .fetch_one(connection)
+        .await
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -187,6 +193,37 @@ mod tests {
         .fetch_all(pool)
         .await
         .unwrap()
+    }
+
+    async fn schedule_sum(pool: &PgPool, closes_in: &str) {
+        sqlx::query(
+            "INSERT INTO schedules VALUES ('log200', 'sum', now() - interval '1 day', now() + $1::interval)",
+        )
+        .bind(closes_in)
+        .execute(pool)
+        .await
+        .unwrap();
+    }
+
+    async fn save_draft(pool: &PgPool, author: &str, source: &str) {
+        sqlx::query(
+            r#"
+                INSERT INTO drafts (author, course, exercise, language_pack, revision, source)
+                VALUES ($1, 'log200', 'sum', 'python', 1, $2)
+            "#,
+        )
+        .bind(author)
+        .bind(source)
+        .execute(pool)
+        .await
+        .unwrap();
+    }
+
+    async fn enqueue_finals_as_judge(pool: &PgPool) -> i32 {
+        let mut transaction = begin_as(pool, AS_JUDGE).await;
+        let queued = enqueue_finals(&mut transaction).await.unwrap();
+        transaction.commit().await.unwrap();
+        queued
     }
 
     #[track_caller]
@@ -558,5 +595,31 @@ mod tests {
         claim_as_judge(&pool).await;
         assert!(finish_as_judge(&pool, job, &[Verdict::Passed]).await);
         assert!(!finish_as_judge(&pool, job, &[Verdict::Passed]).await);
+    }
+
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL"]
+    async fn a_closed_draft_becomes_one_final_job(pool: PgPool) {
+        schedule_sum(&pool, "-1 minute").await;
+        save_draft(&pool, "etudiant1", "print(1)").await;
+        save_draft(&pool, "etudiant2", "").await;
+        assert_eq!(enqueue_finals_as_judge(&pool).await, 1);
+        assert_eq!(enqueue_finals_as_judge(&pool).await, 0);
+        let on_time: bool = sqlx::query_scalar(
+            "SELECT jobs.enqueued_at = drafts.saved_at FROM jobs JOIN drafts USING (author)",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert!(on_time);
+        assert_eq!(claimed_kind(&pool).await, JobKind::Final);
+    }
+
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL"]
+    async fn an_open_draft_is_not_final(pool: PgPool) {
+        schedule_sum(&pool, "1 hour").await;
+        save_draft(&pool, "etudiant1", "print(1)").await;
+        assert_eq!(enqueue_finals_as_judge(&pool).await, 0);
     }
 }

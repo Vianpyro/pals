@@ -12,9 +12,9 @@ use std::{
 use content::{Schedule, accessible_exercise};
 use contracts::Id;
 use judge::{
-    AnswerError, Case, CaseReport, ChoiceKey, Job, JobKind, Pack, Verdict, claim, fail, finish,
-    finish_choice, grade, judge_cases, read_answer, read_cases, read_choice_key, read_packs,
-    read_schedule, report_case,
+    AnswerError, Case, CaseReport, ChoiceKey, Job, JobKind, Pack, Verdict, claim, enqueue_finals,
+    fail, finish, finish_choice, grade, judge_cases, read_answer, read_cases, read_choice_key,
+    read_packs, read_schedule, report_case,
 };
 use sqlx::{Connection, PgConnection, types::Uuid};
 use tokio::time;
@@ -40,7 +40,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
         }
 
         let Some(job) = claim(&mut connection).await? else {
-            time::sleep(POLL).await;
+            if enqueue_finals(&mut connection).await? == 0 {
+                time::sleep(POLL).await;
+            }
             continue;
         };
 

@@ -19,7 +19,7 @@ pub use choice::{AnswerError, ChoiceKey, Selection, grade, read_answer, read_cho
 pub use judging::judge_cases;
 pub use kind::JobKind;
 pub use pack::{Pack, read_packs};
-pub use queue::{Job, claim, fail, finish, finish_choice, report_case};
+pub use queue::{Job, claim, enqueue_finals, fail, finish, finish_choice, report_case};
 pub use report::CaseReport;
 pub use sandbox::{Outcome, run_in_sandbox};
 pub use schedule::read_schedule;

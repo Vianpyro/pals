@@ -231,7 +231,7 @@ async fn enqueue_replacing(
     .await?;
 
     sqlx::query!(
-        "UPDATE jobs SET state = 'replaced', finished_at = now() WHERE author = $1 AND state = 'waiting'",
+        "UPDATE jobs SET state = 'replaced', finished_at = now() WHERE author = $1 AND state = 'waiting' AND kind <> 'final'",
         author
     )
     .execute(&mut *transaction).await?;
@@ -1015,6 +1015,27 @@ mod tests {
             (StatusCode::OK, r#"{"state":"replaced"}"#.to_string())
         );
         assert_eq!(waiting_jobs(&pool).await, 1);
+    }
+
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL"]
+    async fn new_submission_keeps_a_waiting_final(pool: PgPool) {
+        sqlx::query(
+            r#"
+                INSERT INTO jobs (contract, kind, course, exercise, language_pack, source, author)
+                VALUES (1, 'final', 'log200', 'other', 'python', 'print(0)', 'etudiant1')
+            "#,
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        let cookie = signed_in(&pool).await;
+        let courses = open_sum(&pool, "submission-keeps-final").await;
+        assert_eq!(
+            post_submission(&pool, courses, &cookie, SUM).await,
+            StatusCode::ACCEPTED
+        );
+        assert_eq!(waiting_jobs(&pool).await, 2);
     }
 
     #[sqlx::test(migrations = "../../db/migrations")]
