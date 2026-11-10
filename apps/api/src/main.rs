@@ -1129,7 +1129,7 @@ mod tests {
     async fn draft_requires_role(pool: PgPool) {
         let courses = open_sum(&pool, "role-draft").await;
         let cookie = signed_in_without_role(&pool, "visiteur").await;
-        let write = r#"{"base":0,"source":"print(1)"}"#;
+        let write = r#"{"base":0,"language_pack":"python","source":"print(1)"}"#;
         assert_eq!(
             put_draft(&pool, courses.clone(), &cookie, write).await.0,
             StatusCode::FORBIDDEN
@@ -1406,8 +1406,8 @@ mod tests {
     async fn a_saved_draft_is_read_back(pool: PgPool) {
         let courses = open_sum(&pool, "draft-saved").await;
         let cookie = signed_in(&pool).await;
-        let first = r#"{"base":0,"source":"print(1)"}"#;
-        let second = r#"{"base":1,"source":"print(2)"}"#;
+        let first = r#"{"base":0,"language_pack":"python","source":"print(1)"}"#;
+        let second = r#"{"base":1,"language_pack":"python","source":"print(2)"}"#;
         assert_eq!(
             put_draft(&pool, courses.clone(), &cookie, first).await,
             answer(StatusCode::OK, r#"{"revision":1}"#)
@@ -1431,7 +1431,7 @@ mod tests {
             &pool,
             courses.clone(),
             &cookie,
-            r#"{"base":0,"source":"print(1)"}"#,
+            r#"{"base":0,"language_pack":"python","source":"print(1)"}"#,
         )
         .await;
         assert_eq!(
@@ -1439,7 +1439,7 @@ mod tests {
                 &pool,
                 courses.clone(),
                 &cookie,
-                r#"{"base":0,"source":"print(2)"}"#
+                r#"{"base":0,"language_pack":"python","source":"print(2)"}"#
             )
             .await,
             answer(
@@ -1458,7 +1458,7 @@ mod tests {
     async fn replayed_write_is_acknowledged(pool: PgPool) {
         let courses = open_sum(&pool, "draft-replayed").await;
         let cookie = signed_in(&pool).await;
-        let write = r#"{"base":0,"source":"print(1)"}"#;
+        let write = r#"{"base":0,"language_pack":"python","source":"print(1)"}"#;
         for _ in 0..2 {
             assert_eq!(
                 put_draft(&pool, courses.clone(), &cookie, write).await,
@@ -1477,13 +1477,13 @@ mod tests {
                 &pool,
                 courses.clone(),
                 &cookie,
-                r#"{"base":0,"source":"print(1)"}"#
+                r#"{"base":0,"language_pack":"python","source":"print(1)"}"#
             ),
             put_draft(
                 &pool,
                 courses.clone(),
                 &cookie,
-                r#"{"base":0,"source":"print(2)"}"#
+                r#"{"base":0,"language_pack":"python","source":"print(2)"}"#
             ),
         );
         let mut statuses = [first.0, second.0];
@@ -1500,7 +1500,7 @@ mod tests {
             &pool,
             courses.clone(),
             &mine,
-            r#"{"base":0,"source":"print(1)"}"#,
+            r#"{"base":0,"language_pack":"python","source":"print(1)"}"#,
         )
         .await;
         assert_eq!(
@@ -1515,7 +1515,7 @@ mod tests {
         schedule_sum(&pool, "-2 hours", Some("-1 hour")).await;
         let courses = published_courses("draft-closed");
         let cookie = signed_in(&pool).await;
-        let write = r#"{"base":0,"source":"print(1)"}"#;
+        let write = r#"{"base":0,"language_pack":"python","source":"print(1)"}"#;
         assert_eq!(
             put_draft(&pool, courses.clone(), &cookie, write).await.0,
             StatusCode::FORBIDDEN
@@ -1530,7 +1530,7 @@ mod tests {
     #[ignore = "needs PostgreSQL"]
     async fn an_oversized_draft_is_rejected(pool: PgPool) {
         let courses = open_sum(&pool, "draft-oversized").await;
-        let write = format!(r#"{{"base":0,"source":"{}"}}"#, "x".repeat(MAX_SOURCE + 1));
+        let write = format!(r#"{{"base":0,"language_pack":"python","source":"{}"}}"#, "x".repeat(MAX_SOURCE + 1));
         assert_eq!(
             put_draft(&pool, courses, &signed_in(&pool).await, write)
                 .await
