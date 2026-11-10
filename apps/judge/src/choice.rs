@@ -45,9 +45,24 @@ fn best_score(key: &ChoiceKey) -> i32 {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AnswerError {
+    Malformed,
     UnknownChoice(usize),
     Duplicate(usize),
     TooMany,
+}
+
+pub fn read_answer(source: &str) -> Result<Vec<usize>, AnswerError> {
+    if source.is_empty() {
+        return Ok(Vec::new());
+    }
+    source.split(',').map(choice_index).collect()
+}
+
+fn choice_index(text: &str) -> Result<usize, AnswerError> {
+    text.bytes()
+        .all(|byte| byte.is_ascii_digit())
+        .ok_or(AnswerError::Malformed)?;
+    text.parse().map_err(|_| AnswerError::Malformed)
 }
 
 pub fn grade(key: &ChoiceKey, selected: &[usize]) -> Result<u8, AnswerError> {
@@ -204,5 +219,26 @@ mod tests {
     #[test]
     fn no_choice_scores_nothing() {
         assert_eq!(grade(&multiple(&[50, 50]), &[]), Ok(0));
+    }
+
+    #[test]
+    fn answer_lists_its_choices() {
+        assert_eq!(read_answer("0,2"), Ok(vec![0, 2]));
+    }
+
+    #[test]
+    fn empty_answer_selects_nothing() {
+        assert_eq!(read_answer(""), Ok(vec![]));
+    }
+
+    #[test]
+    fn malformed_answer_is_refused() {
+        for source in ["0,", ",1", "1,,2", "a", "-1", " 1", "+1"] {
+            assert_eq!(
+                read_answer(source),
+                Err(AnswerError::Malformed),
+                "{source:?}"
+            );
+        }
     }
 }

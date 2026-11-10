@@ -1,14 +1,22 @@
 //! Pulls jobs, runs the sandbox and writes the verdict.
 
-use std::{collections::HashMap, env, error::Error, future, io, path::Path, time::Duration};
+use std::{
+    collections::HashMap,
+    env,
+    error::Error,
+    future, io,
+    path::{Path, PathBuf},
+    time::Duration,
+};
 
 use content::{Schedule, accessible_exercise};
 use contracts::Id;
 use judge::{
-    Case, CaseReport, Job, Pack, Verdict, claim, fail, finish, judge_cases, read_cases, read_packs,
+    AnswerError, Case, CaseReport, ChoiceKey, Job, JobKind, Pack, Verdict, claim, fail, finish,
+    finish_choice, grade, judge_cases, read_answer, read_cases, read_choice_key, read_packs,
     read_schedule, report_case,
 };
-use sqlx::{Connection, PgConnection};
+use sqlx::{Connection, PgConnection, types::Uuid};
 use tokio::time;
 
 const TIMEOUT: Duration = Duration::from_secs(10);
@@ -40,17 +48,41 @@ async fn main() -> Result<(), Box<dyn Error>> {
         let schedule = read_schedule(&mut connection, &job.course, &job.exercise).await?;
 
         // Job cannot be judged: failed so it is never reclaimed
-        let (pack, cases) =
-            match prepare(&packs, content.as_ref(), courses.as_ref(), &job, &schedule) {
-                Ok(prepared) => prepared,
-                Err(error) => {
-                    eprintln!("judge: job {}: {error}", job.id);
-                    if !fail(&mut connection, job.id).await? {
-                        eprintln!("judge: job {}: was no longer running", job.id);
+        let assessment = match assessment(content.as_ref(), courses.as_ref(), &job, &schedule) {
+            Ok(path) => path,
+            Err(error) => {
+                reject(&mut connection, job.id, error).await?;
+                continue;
+            }
+        };
+
+        match read_choice_key(&assessment) {
+            Ok(key) => {
+                match choice_score(&job, &key) {
+                    Ok(score) => {
+                        if !finish_choice(&mut connection, job.id, score).await? {
+                            eprintln!("judge: job {} was no longer running", job.id);
+                        }
                     }
-                    continue;
+                    Err(error) => reject(&mut connection, job.id, error).await?,
                 }
-            };
+                continue;
+            }
+            // No choice key: the exercise is judged code
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+            Err(error) => {
+                reject(&mut connection, job.id, error).await?;
+                continue;
+            }
+        }
+
+        let (pack, cases) = match prepare(&packs, &assessment, &job) {
+            Ok(prepared) => prepared,
+            Err(error) => {
+                reject(&mut connection, job.id, error).await?;
+                continue;
+            }
+        };
 
         // A sandbox failure stops the judge rather than failing every job it claims
         let verdicts = judge(&job, pack, &cases, async |report| {
@@ -79,10 +111,8 @@ fn stop_signal() -> io::Result<tokio::signal::windows::CtrlC> {
 
 fn prepare<'p>(
     packs: &'p HashMap<Id, Pack>,
-    content: &Path,
-    courses: &Path,
+    assessment: &Path,
     job: &Job,
-    schedule: &Schedule,
 ) -> io::Result<(&'p Pack, Vec<Case>)> {
     let pack = packs.get(&id(&job.language_pack)?).ok_or_else(|| {
         io::Error::new(
@@ -90,6 +120,24 @@ fn prepare<'p>(
             format!("language pack {}", job.language_pack),
         )
     })?;
+    let mut cases = read_cases(assessment)?;
+    cases.retain(|case| job.kind.runs(case.visibility));
+    (!cases.is_empty()).ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("no case for a {:?} job", job.kind),
+        )
+    })?;
+
+    Ok((pack, cases))
+}
+
+fn assessment(
+    content: &Path,
+    courses: &Path,
+    job: &Job,
+    schedule: &Schedule,
+) -> io::Result<PathBuf> {
     let course = id(&job.course)?;
     let exercise = id(&job.exercise)?;
 
@@ -100,22 +148,24 @@ fn prepare<'p>(
         job.enqueued_at.into(),
     )?;
 
-    let assessment = content
+    Ok(content
         .join(course.as_str())
         .join("exercises")
         .join(exercise.as_str())
-        .join("assessment");
+        .join("assessment"))
+}
 
-    let mut cases = read_cases(&assessment)?;
-    cases.retain(|case| job.kind.runs(case.visibility));
-    (!cases.is_empty()).ok_or_else(|| {
-        io::Error::new(
-            io::ErrorKind::InvalidData,
-            format!("no case for a {:?} job", job.kind),
-        )
-    })?;
-
-    Ok((pack, cases))
+fn choice_score(job: &Job, key: &ChoiceKey) -> io::Result<u8> {
+    if job.kind != JobKind::Final {
+        return Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "a choice item is graded only by a final job",
+        ));
+    }
+    let malformed =
+        |error: AnswerError| io::Error::new(io::ErrorKind::InvalidData, format!("{error:?}"));
+    let selected = read_answer(&job.source).map_err(malformed)?;
+    grade(key, &selected).map_err(malformed)
 }
 
 fn id(value: &str) -> io::Result<Id> {
@@ -134,13 +184,21 @@ async fn judge(
     judge_cases(&name, job.kind, pack, &job.source, cases, TIMEOUT, report).await
 }
 
+async fn reject(connection: &mut PgConnection, job: Uuid, error: io::Error) -> sqlx::Result<()> {
+    eprintln!("judge: job {job}: {error}");
+    if !fail(connection, job).await? {
+        eprintln!("judge: job {job}: was no longer running");
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use content::Window;
-    use judge::{JobKind, Visibility};
-    use sqlx::types::{Uuid, time::OffsetDateTime};
-    use std::{assert_matches, fs, path::PathBuf, time::UNIX_EPOCH};
+    use judge::{Selection, Visibility};
+    use sqlx::types::time::OffsetDateTime;
+    use std::{assert_matches, fs, time::UNIX_EPOCH};
 
     fn examples() -> &'static Path {
         Path::new(concat!(
@@ -198,11 +256,69 @@ mod tests {
         }
     }
 
+    fn prepare_job<'p>(
+        packs: &'p HashMap<Id, Pack>,
+        content: &Path,
+        courses: &Path,
+        job: &Job,
+        schedule: &Schedule,
+    ) -> io::Result<(&'p Pack, Vec<Case>)> {
+        prepare(packs, &assessment(content, courses, job, schedule)?, job)
+    }
+
+    fn choice(selection: Selection, weights: &[i32]) -> ChoiceKey {
+        ChoiceKey {
+            selection,
+            weights: weights.to_vec(),
+        }
+    }
+
+    fn final_answer(source: &str) -> Job {
+        let mut job = job("python", "sum", source);
+        job.kind = JobKind::Final;
+        job
+    }
+
+    #[test]
+    fn final_job_grades_a_choice_item() {
+        let key = choice(Selection::Multiple, &[50, 50, -100]);
+        assert_eq!(choice_score(&final_answer("0"), &key).unwrap(), 50);
+    }
+
+    #[test]
+    fn test_runs_never_grade_a_choice_item() {
+        let key = choice(Selection::Single, &[0, 100]);
+        for kind in [JobKind::Precheck, JobKind::Check] {
+            let mut job = final_answer("1");
+            job.kind = kind;
+            assert_matches!(choice_score(&job, &key), Err(error) if error.kind() == io::ErrorKind::Unsupported);
+        }
+    }
+
+    #[test]
+    fn invalid_choice_answer_is_invalid_data() {
+        let key = choice(Selection::Single, &[0, 100]);
+        for source in ["x", "5", "0,1"] {
+            assert_matches!(
+                choice_score(&final_answer(source), &key),
+                Err(error) if error.kind() == io::ErrorKind::InvalidData,
+                "{source:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn closed_choice_item_is_denied() {
+        let (content, courses) = log200("choice-after-closing");
+        let result = assessment(&content, &courses, &final_answer("1"), &closing_after(10));
+        assert_matches!(result, Err(error) if error.kind() == io::ErrorKind::PermissionDenied);
+    }
+
     #[test]
     fn submitted_before_close_is_judged() {
         let (content, courses) = log200("submitted-before-closing");
         let packs = packs();
-        let (_, cases) = prepare(
+        let (_, cases) = prepare_job(
             &packs,
             &content,
             &courses,
@@ -223,7 +339,7 @@ mod tests {
         let mut job = job("python", "sum", "");
         job.kind = JobKind::Precheck;
         let packs = packs();
-        let (_, cases) = prepare(&packs, &content, &courses, &job, &closing_after(60)).unwrap();
+        let (_, cases) = prepare_job(&packs, &content, &courses, &job, &closing_after(60)).unwrap();
         let kinds: Vec<Visibility> = cases.iter().map(|case| case.visibility).collect();
         assert_eq!(kinds, [Visibility::Visible]);
     }
@@ -234,7 +350,7 @@ mod tests {
         let mut job = job("python", "sum", "");
         job.kind = JobKind::Precheck;
         let packs = packs();
-        let result = prepare(&packs, &content, &courses, &job, &closing_after(60));
+        let result = prepare_job(&packs, &content, &courses, &job, &closing_after(60));
         assert_matches!(result, Err(error) if error.kind() == io::ErrorKind::InvalidData);
     }
 
@@ -242,7 +358,7 @@ mod tests {
     fn submitted_after_close_is_denied() {
         let (content, courses) = log200("submitted-after-closing");
         let packs = packs();
-        let result = prepare(
+        let result = prepare_job(
             &packs,
             &content,
             &courses,
@@ -256,7 +372,7 @@ mod tests {
     fn unknown_language_pack_is_unsupported() {
         let (content, courses) = log200("unknown-pack");
         let packs = packs();
-        let result = prepare(
+        let result = prepare_job(
             &packs,
             &content,
             &courses,
@@ -270,7 +386,7 @@ mod tests {
     fn unpublished_exercise_is_not_found() {
         let (content, courses) = log200("unpublished");
         let packs = packs();
-        let result = prepare(
+        let result = prepare_job(
             &packs,
             &content,
             &courses,
@@ -286,7 +402,7 @@ mod tests {
         let mut job = job("python", "sum", "");
         job.course = "log201".to_string();
         let packs = packs();
-        let result = prepare(&packs, &content, &courses, &job, &closing_after(60));
+        let result = prepare_job(&packs, &content, &courses, &job, &closing_after(60));
         assert_matches!(result, Err(error) if error.kind() == io::ErrorKind::NotFound);
     }
 
