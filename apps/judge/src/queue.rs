@@ -54,6 +54,20 @@ pub async fn finish(
     .await
 }
 
+pub async fn finish_choice(
+    connection: &mut PgConnection,
+    job: Uuid,
+    score: u8,
+) -> sqlx::Result<bool> {
+    sqlx::query_scalar!(
+        r#"SELECT finish_choice($1, $2) AS "finished!""#,
+        job,
+        i16::from(score),
+    )
+    .fetch_one(connection)
+    .await
+}
+
 pub async fn report_case(
     connection: &mut PgConnection,
     job: Uuid,
@@ -294,6 +308,67 @@ mod tests {
         let error = finish(&mut transaction, job, &[Verdict::Passed])
             .await
             .unwrap_err();
+        assert_denied(&error);
+    }
+
+    async fn enqueue_final(pool: &PgPool) -> Uuid {
+        sqlx::query_scalar(
+            r#"
+                INSERT INTO jobs (contract, kind, course, exercise, language_pack, source, author)
+                VALUES (1, 'final', 'log200', 'quiz', 'python', '1', 'etudiant1')
+                RETURNING id
+            "#,
+        )
+        .fetch_one(pool)
+        .await
+        .unwrap()
+    }
+
+    async fn finish_choice_as_judge(pool: &PgPool, job: Uuid, score: u8) -> bool {
+        let mut transaction = begin_as(pool, AS_JUDGE).await;
+        let finished = finish_choice(&mut transaction, job, score).await.unwrap();
+        transaction.commit().await.unwrap();
+        finished
+    }
+
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL"]
+    async fn final_job_keeps_its_choice_score(pool: PgPool) {
+        let job = enqueue_final(&pool).await;
+        claim_as_judge(&pool).await;
+        assert!(finish_choice_as_judge(&pool, job, 75).await);
+        assert!(!finish_choice_as_judge(&pool, job, 75).await);
+        assert_eq!(
+            state_and_result(&pool, job).await,
+            ("done".into(), Some(r#"{"score": 75}"#.into()))
+        );
+    }
+
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL"]
+    async fn check_job_cannot_keep_a_choice_score(pool: PgPool) {
+        let job = enqueue(&pool).await;
+        claim_as_judge(&pool).await;
+        assert!(!finish_choice_as_judge(&pool, job, 100).await);
+        assert_eq!(state_and_result(&pool, job).await, ("running".into(), None));
+    }
+
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL"]
+    async fn choice_score_above_100_is_refused(pool: PgPool) {
+        let job = enqueue_final(&pool).await;
+        claim_as_judge(&pool).await;
+        assert!(!finish_choice_as_judge(&pool, job, 101).await);
+        assert_eq!(state_and_result(&pool, job).await, ("running".into(), None));
+    }
+
+    #[sqlx::test(migrations = "../../db/migrations")]
+    #[ignore = "needs PostgreSQL"]
+    async fn only_the_judge_can_keep_a_choice_score(pool: PgPool) {
+        let job = enqueue_final(&pool).await;
+        claim_as_judge(&pool).await;
+        let mut transaction = begin_as(&pool, AS_API).await;
+        let error = finish_choice(&mut transaction, job, 100).await.unwrap_err();
         assert_denied(&error);
     }
 

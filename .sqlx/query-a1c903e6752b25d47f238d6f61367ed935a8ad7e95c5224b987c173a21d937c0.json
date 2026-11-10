@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT finish_choice($1, $2) AS \"finished!\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "finished!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int2"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "a1c903e6752b25d47f238d6f61367ed935a8ad7e95c5224b987c173a21d937c0"
+}
