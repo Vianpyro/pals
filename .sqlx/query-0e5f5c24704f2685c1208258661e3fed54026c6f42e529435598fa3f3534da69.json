@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT offerings.course::text AS \"course!\"\n            FROM offering_roles\n            JOIN offerings ON offerings.id = offering_roles.offering\n            WHERE offering_roles.offering = $1::text AND offering_roles.account = $2\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "course!",
+        "type_info": "Text",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "0e5f5c24704f2685c1208258661e3fed54026c6f42e529435598fa3f3534da69"
+}

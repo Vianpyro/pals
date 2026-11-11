@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT id AS \"id!\", kind AS \"kind!: JobKind\", state AS \"state!: JobState\", passed, enqueued_at AS \"enqueued_at!\"\n            FROM runs\n            WHERE author = $1 AND course = $2::text AND exercise = $3::text\n            ORDER BY enqueued_at DESC, id DESC\n        ",
+  "query": "\n            SELECT DISTINCT ON (offering, exercise)\n                id AS \"id!\", kind AS \"kind!: JobKind\", state AS \"state!: JobState\", passed, enqueued_at AS \"enqueued_at!\"\n                FROM runs WHERE author = $1\n                ORDER BY offering, exercise, enqueued_at DESC, id DESC\n        ",
   "describe": {
     "columns": [
       {
@@ -85,8 +85,6 @@
     ],
     "parameters": {
       "Left": [
-        "Text",
-        "Text",
         "Text"
       ]
     },
@@ -98,5 +96,5 @@
       true
     ]
   },
-  "hash": "a5d664c5bd4d41d008edadd76f35f364ca214b51a4cdd3dd707961594429159c"
+  "hash": "9447ebfd230102da771ec32c38d09976b175e1e4f09885b7db2ba33d3c25eb46"
 }

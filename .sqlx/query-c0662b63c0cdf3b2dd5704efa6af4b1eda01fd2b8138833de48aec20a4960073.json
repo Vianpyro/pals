@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT opens_at, closes_at FROM schedules WHERE course = $1::text AND activity = $2::text",
+  "query": "SELECT opens_at, closes_at FROM schedules WHERE offering = $1::text AND activity = $2::text",
   "describe": {
     "columns": [
       {
@@ -37,5 +37,5 @@
       true
     ]
   },
-  "hash": "60c9642f2714d0f17cb02d0a84b11bcd7c5bae29eb51314f2ce4c5081873bedb"
+  "hash": "c0662b63c0cdf3b2dd5704efa6af4b1eda01fd2b8138833de48aec20a4960073"
 }

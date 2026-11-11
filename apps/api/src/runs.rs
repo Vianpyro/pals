@@ -74,10 +74,10 @@ pub(super) async fn one(pool: &PgPool, id: Uuid, author: &str) -> Result<Option<
 pub(super) async fn latest(pool: &PgPool, author: &str) -> Result<Vec<Run>, StatusCode> {
     sqlx::query!(
         r#"
-            SELECT DISTINCT ON (course, exercise)
+            SELECT DISTINCT ON (offering, exercise)
                 id AS "id!", kind AS "kind!: JobKind", state AS "state!: JobState", passed, enqueued_at AS "enqueued_at!"
                 FROM runs WHERE author = $1
-                ORDER BY course, exercise, enqueued_at DESC, id DESC
+                ORDER BY offering, exercise, enqueued_at DESC, id DESC
         "#,
         author
     )
@@ -105,17 +105,17 @@ pub(super) async fn progress(
 pub(super) async fn history(
     Account(author): Account,
     State(pool): State<PgPool>,
-    Path((course, exercise)): Path<(Id, Id)>,
+    Path((offering, exercise)): Path<(Id, Id)>,
 ) -> Result<Json<Vec<Run>>, StatusCode> {
     sqlx::query!(
         r#"
             SELECT id AS "id!", kind AS "kind!: JobKind", state AS "state!: JobState", passed, enqueued_at AS "enqueued_at!"
             FROM runs
-            WHERE author = $1 AND course = $2::text AND exercise = $3::text
+            WHERE author = $1 AND offering = $2::text AND exercise = $3::text
             ORDER BY enqueued_at DESC, id DESC
         "#,
         author,
-        course.as_str(),
+        offering.as_str(),
         exercise.as_str()
     )
     .fetch_all(&pool)

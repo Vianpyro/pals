@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT revision, source FROM drafts WHERE author = $1 AND course = $2::text AND exercise = $3::text",
+  "query": "SELECT revision, source FROM drafts WHERE author = $1 AND offering = $2::text AND exercise = $3::text",
   "describe": {
     "columns": [
       {
@@ -38,5 +38,5 @@
       false
     ]
   },
-  "hash": "d7b41af8a47004f6a2e71da4d920d1982ec7b64d171dc00c9ba4401cbc0f3db9"
+  "hash": "5a64a5f0c72e2f7de65976c1201e5d0043b43dfe43286ba1b3d2986c733df3e0"
 }

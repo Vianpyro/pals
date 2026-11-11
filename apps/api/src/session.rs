@@ -89,14 +89,20 @@ impl FromRequestParts<AppState> for Account {
 mod tests {
     use super::*;
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn session_is_found_by_its_token(pool: PgPool) {
         let token = open(&pool, "etudiant1").await.unwrap();
         let account = account(&pool, &token).await.unwrap();
         assert_eq!(account.as_deref(), Some("etudiant1"));
     }
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn unknown_token_has_no_session(pool: PgPool) {
         open(&pool, "etudiant1").await.unwrap();
@@ -104,7 +110,10 @@ mod tests {
         assert_eq!(account, None);
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn each_session_has_its_own_token(pool: PgPool) {
         let first = open(&pool, "etudiant1").await.unwrap();

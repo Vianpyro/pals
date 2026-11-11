@@ -21,13 +21,11 @@ CREATE TYPE case_verdict AS ENUM (
     'timed-out'
 );
 
-CREATE DOMAIN identifier AS text CHECK (value ~ '^[a-z0-9-]+$');
-
 CREATE TABLE jobs (
     id uuid PRIMARY KEY DEFAULT uuidv7(),
     contract integer NOT NULL CHECK (contract > 0),
     kind job_kind NOT NULL DEFAULT 'check',
-    course identifier NOT NULL,
+    offering identifier NOT NULL REFERENCES offerings ON DELETE CASCADE,
     exercise identifier NOT NULL,
     language_pack identifier NOT NULL, -- (ADR-0013)
     author text NOT NULL CHECK (author <> ''), -- (ADR-0017)

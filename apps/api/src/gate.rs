@@ -13,33 +13,40 @@ use sqlx::PgPool;
 
 use super::{roles, schedule};
 
-pub(super) async fn member(pool: &PgPool, course: &Id, account: &str) -> Result<(), StatusCode> {
-    let has_role = roles::has_role(pool, course, account)
+pub(super) async fn course_dir(
+    pool: &PgPool,
+    courses: &Path,
+    offering: &Id,
+    account: &str,
+) -> Result<PathBuf, StatusCode> {
+    let course = roles::course(pool, offering, account)
         .await
         .map_err(|error| {
             eprintln!("api: roles: {error}");
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
-    has_role.ok_or(StatusCode::FORBIDDEN)
+    // Safe in a path: the identifier domain allows only [a-z0-9-] (ADR-0023)
+    course
+        .map(|course| courses.join(course))
+        .ok_or(StatusCode::FORBIDDEN)
 }
 
 pub(super) async fn open_exercise(
     pool: &PgPool,
     courses: &Path,
     account: &str,
-    course: &Id,
+    offering: &Id,
     exercise: &Id,
 ) -> Result<PathBuf, StatusCode> {
-    member(pool, course, account).await?;
+    let course_dir = course_dir(pool, courses, offering, account).await?;
 
-    let schedule = schedule::read(pool, course, exercise)
+    let schedule = schedule::read(pool, offering, exercise)
         .await
         .map_err(|error| {
             eprintln!("api: schedule: {error}");
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
 
-    let course_dir = courses.join(course.as_str());
     accessible_exercise(&course_dir, exercise, &schedule, SystemTime::now()).map_err(status_of)
 }
 

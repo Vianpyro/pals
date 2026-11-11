@@ -6,6 +6,7 @@ RETURNS TABLE (
     id uuid,
     contract integer,
     kind job_kind,
+    offering identifier,
     course identifier,
     exercise identifier,
     language_pack identifier,
@@ -25,12 +26,13 @@ BEGIN ATOMIC
     WHERE jobs.state = 'running' AND jobs.claimed_at < now() - interval '2 minutes';
 
     UPDATE public.jobs SET state = 'running', claimed_at = now(), claims = jobs.claims + 1
-    WHERE jobs.id = (
+    FROM public.offerings
+    WHERE offerings.id = jobs.offering AND jobs.id = (
         SELECT j.id FROM public.jobs j
         WHERE j.state = 'waiting'
         ORDER BY j.enqueued_at, j.id LIMIT 1 FOR UPDATE SKIP LOCKED
     )
-    RETURNING jobs.id, jobs.contract, jobs.kind, jobs.course, jobs.exercise, jobs.language_pack, jobs.source, jobs.enqueued_at;
+    RETURNING jobs.id, jobs.contract, jobs.kind, jobs.offering, offerings.course, jobs.exercise, jobs.language_pack, jobs.source, jobs.enqueued_at;
 END;
 
 REVOKE EXECUTE ON FUNCTION claim_job() FROM PUBLIC;

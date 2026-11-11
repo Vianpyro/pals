@@ -19,7 +19,7 @@ pub enum RunKind {
 #[derive(Deserialize, TS)]
 #[ts(export)]
 pub struct Submission {
-    pub course: Id,
+    pub offering: Id,
     pub exercise: Id,
     pub language_pack: Id,
     pub source: String,
@@ -40,7 +40,7 @@ mod tests {
     use serde_json::json;
 
     fn submission(kind: Option<&str>) -> serde_json::Result<Submission> {
-        let mut body = json!({"course": "log200", "exercise": "sum", "language_pack": "python", "source": "print(0)"});
+        let mut body = json!({"offering": "log200", "exercise": "sum", "language_pack": "python", "source": "print(0)"});
         if let Some(kind) = kind {
             body["kind"] = json!(kind);
         }

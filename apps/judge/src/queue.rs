@@ -12,6 +12,7 @@ pub struct Job {
     pub id: Uuid,
     pub contract: i32,
     pub kind: JobKind,
+    pub offering: String,
     pub course: String,
     pub exercise: String,
     pub language_pack: String,
@@ -28,6 +29,7 @@ pub async fn claim(connection: &mut PgConnection) -> sqlx::Result<Option<Job>> {
                 id AS "id!",
                 contract AS "contract!",
                 kind AS "kind!: JobKind",
+                offering AS "offering!: String",
                 course AS "course!: String",
                 exercise AS "exercise!: String",
                 language_pack AS "language_pack!: String",
@@ -110,7 +112,7 @@ mod tests {
     async fn enqueue(pool: &PgPool) -> Uuid {
         sqlx::query_scalar(
             r#"
-                INSERT INTO jobs (contract, course, exercise, language_pack, source, author)
+                INSERT INTO jobs (contract, offering, exercise, language_pack, source, author)
                 VALUES (1, 'log200', 'sum', 'python', 'print(0)', 'etudiant1')
                 RETURNING id
             "#,
@@ -123,7 +125,7 @@ mod tests {
     async fn enqueue_kind(pool: &PgPool, kind: JobKind) {
         sqlx::query(
             r#"
-                INSERT INTO jobs (contract, kind, course, exercise, language_pack, source, author)
+                INSERT INTO jobs (contract, kind, offering, exercise, language_pack, source, author)
                 VALUES (1, $1, 'log200', 'sum', 'python', 'print(0)', 'etudiant1')
             "#,
         )
@@ -208,7 +210,7 @@ mod tests {
     async fn save_draft(pool: &PgPool, author: &str, source: &str) {
         sqlx::query(
             r#"
-                INSERT INTO drafts (author, course, exercise, language_pack, revision, source)
+                INSERT INTO drafts (author, offering, exercise, language_pack, revision, source)
                 VALUES ($1, 'log200', 'sum', 'python', 1, $2)
             "#,
         )
@@ -232,13 +234,19 @@ mod tests {
         assert_eq!(code.as_deref(), Some("42501"), "{error}"); // SQLSTATE insufficient_privilege
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn empty_queue_has_nothing_to_claim(pool: PgPool) {
         assert_eq!(claim_as_judge(&pool).await, None);
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn claimed_oldest_first_once(pool: PgPool) {
         let first = enqueue(&pool).await;
@@ -248,7 +256,10 @@ mod tests {
         assert_eq!(claim_as_judge(&pool).await, None);
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn claimed_job_holds_its_kind(pool: PgPool) {
         for kind in [JobKind::Precheck, JobKind::Check, JobKind::Final] {
@@ -257,14 +268,20 @@ mod tests {
         }
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn missing_kind_is_a_check(pool: PgPool) {
         enqueue(&pool).await;
         assert_eq!(claimed_kind(&pool).await, JobKind::Check);
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn concurrent_judges_skip_a_locked_job(pool: PgPool) {
         let first = enqueue(&pool).await;
@@ -279,7 +296,10 @@ mod tests {
         assert_eq!(other, Some(second));
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn judge_cannot_touch_jobs(pool: PgPool) {
         enqueue(&pool).await;
@@ -296,7 +316,10 @@ mod tests {
         }
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn only_the_judge_can_claim(pool: PgPool) {
         enqueue(&pool).await;
@@ -304,7 +327,10 @@ mod tests {
         assert_denied(&claim(&mut transaction).await.unwrap_err());
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn claimed_job_is_finished_once(pool: PgPool) {
         let job = enqueue(&pool).await;
@@ -319,7 +345,10 @@ mod tests {
         );
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn waiting_job_cannot_be_finished(pool: PgPool) {
         let job = enqueue(&pool).await;
@@ -327,7 +356,10 @@ mod tests {
         assert_eq!(state_and_result(&pool, job).await, ("waiting".into(), None));
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn job_without_verdict_is_not_finished(pool: PgPool) {
         let job = enqueue(&pool).await;
@@ -336,7 +368,10 @@ mod tests {
         assert_eq!(state_and_result(&pool, job).await, ("running".into(), None));
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn only_the_judge_can_finish(pool: PgPool) {
         let job = enqueue(&pool).await;
@@ -351,7 +386,7 @@ mod tests {
     async fn enqueue_final(pool: &PgPool) -> Uuid {
         sqlx::query_scalar(
             r#"
-                INSERT INTO jobs (contract, kind, course, exercise, language_pack, source, author)
+                INSERT INTO jobs (contract, kind, offering, exercise, language_pack, source, author)
                 VALUES (1, 'final', 'log200', 'quiz', 'python', '1', 'etudiant1')
                 RETURNING id
             "#,
@@ -368,7 +403,10 @@ mod tests {
         finished
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn final_job_keeps_its_choice_score(pool: PgPool) {
         let job = enqueue_final(&pool).await;
@@ -381,7 +419,10 @@ mod tests {
         );
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn check_job_cannot_keep_a_choice_score(pool: PgPool) {
         let job = enqueue(&pool).await;
@@ -390,7 +431,10 @@ mod tests {
         assert_eq!(state_and_result(&pool, job).await, ("running".into(), None));
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn choice_score_above_100_is_refused(pool: PgPool) {
         let job = enqueue_final(&pool).await;
@@ -399,7 +443,10 @@ mod tests {
         assert_eq!(state_and_result(&pool, job).await, ("running".into(), None));
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn only_the_judge_can_keep_a_choice_score(pool: PgPool) {
         let job = enqueue_final(&pool).await;
@@ -424,7 +471,10 @@ mod tests {
             .unwrap();
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn claimed_job_fails_once(pool: PgPool) {
         let job = enqueue(&pool).await;
@@ -434,7 +484,10 @@ mod tests {
         assert_eq!(state_and_result(&pool, job).await, ("failed".into(), None));
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn waiting_job_cannot_fail(pool: PgPool) {
         let job = enqueue(&pool).await;
@@ -442,7 +495,10 @@ mod tests {
         assert_eq!(state_and_result(&pool, job).await, ("waiting".into(), None));
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn only_the_judge_can_fail(pool: PgPool) {
         let job = enqueue(&pool).await;
@@ -451,7 +507,10 @@ mod tests {
         assert_denied(&fail(&mut transaction, job).await.unwrap_err());
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn leased_job_is_not_reclaimed(pool: PgPool) {
         let job = enqueue(&pool).await;
@@ -460,7 +519,10 @@ mod tests {
         assert_eq!(state_and_result(&pool, job).await, ("running".into(), None));
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn abandoned_job_is_reclaimed_first(pool: PgPool) {
         let abandoned = enqueue(&pool).await;
@@ -471,7 +533,10 @@ mod tests {
         assert_eq!(claim_as_judge(&pool).await, Some(newer));
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn job_abandoned_three_times_fails(pool: PgPool) {
         let job = enqueue(&pool).await;
@@ -482,7 +547,10 @@ mod tests {
         assert_eq!(claim_as_judge(&pool).await, None);
         assert_eq!(state_and_result(&pool, job).await, ("failed".into(), None));
     }
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn running_job_reports_its_cases(pool: PgPool) {
         let job = enqueue(&pool).await;
@@ -495,7 +563,10 @@ mod tests {
         );
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn case_reported_twice_keeps_last(pool: PgPool) {
         let job = enqueue(&pool).await;
@@ -512,7 +583,10 @@ mod tests {
         );
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn only_a_running_job_reports(pool: PgPool) {
         let job = enqueue(&pool).await;
@@ -525,7 +599,10 @@ mod tests {
         assert_eq!(reported_cases(&pool, job).await, []);
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn only_the_judge_can_report(pool: PgPool) {
         let job = enqueue(&pool).await;
@@ -537,7 +614,10 @@ mod tests {
         assert_denied(&error);
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn judge_cannot_touch_case_rows(pool: PgPool) {
         let mut transaction = begin_as(&pool, AS_JUDGE).await;
@@ -548,7 +628,10 @@ mod tests {
         assert_denied(&error);
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn reclaimed_job_loses_its_cases(pool: PgPool) {
         let job = enqueue(&pool).await;
@@ -559,7 +642,10 @@ mod tests {
         assert_eq!(reported_cases(&pool, job).await, []);
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn claiming_keeps_other_jobs_cases(pool: PgPool) {
         let job = enqueue(&pool).await;
@@ -572,7 +658,10 @@ mod tests {
         );
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn a_case_is_deleted_with_its_job(pool: PgPool) {
         let job = enqueue(&pool).await;
@@ -586,7 +675,10 @@ mod tests {
         assert_eq!(reported_cases(&pool, job).await, []);
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn reclaimed_job_can_still_finish(pool: PgPool) {
         let job = enqueue(&pool).await;
@@ -597,7 +689,10 @@ mod tests {
         assert!(!finish_as_judge(&pool, job, &[Verdict::Passed]).await);
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn a_closed_draft_becomes_one_final_job(pool: PgPool) {
         schedule_sum(&pool, "-1 minute").await;
@@ -615,7 +710,10 @@ mod tests {
         assert_eq!(claimed_kind(&pool).await, JobKind::Final);
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn an_open_draft_is_not_final(pool: PgPool) {
         schedule_sum(&pool, "1 hour").await;

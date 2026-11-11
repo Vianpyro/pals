@@ -65,13 +65,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
 }
 
 async fn enroll(pool: &PgPool) -> Result<(), Box<dyn Error>> {
-    let course: Id = env::args()
+    let offering: Id = env::args()
         .nth(2)
-        .ok_or("usage: api enroll <course> < roster.csv")?
+        .ok_or("usage: api enroll <offering> < roster.csv")?
         .parse()?;
     let roster = roster::parse(&io::read_to_string(io::stdin())?)?;
-    roster::replace(pool, &course, &roster).await?;
-    println!("{}: {} enrollments", course.as_str(), roster.len());
+    roster::replace(pool, &offering, &roster).await?;
+    println!("{}: {} enrollments", offering.as_str(), roster.len());
     Ok(())
 }
 
@@ -120,17 +120,17 @@ fn app(
         runs,
     };
     Router::new()
-        .route("/courses/{course}/exercises", get(catalog::catalog))
+        .route("/offerings/{offering}/exercises", get(catalog::catalog))
         .route(
-            "/courses/{course}/exercises/{exercise}/draft",
+            "/offerings/{offering}/exercises/{exercise}/draft",
             get(drafts::draft).put(drafts::save),
         )
         .route(
-            "/courses/{course}/exercises/{exercise}/statement",
+            "/offerings/{offering}/exercises/{exercise}/statement",
             get(statement),
         )
         .route(
-            "/courses/{course}/exercises/{exercise}/submissions",
+            "/offerings/{offering}/exercises/{exercise}/submissions",
             get(runs::history),
         )
         .route("/events", get(events::events))
@@ -181,9 +181,9 @@ async fn statement(
     Account(account): Account,
     State(pool): State<PgPool>,
     State(courses): State<Arc<path::Path>>,
-    Path((course, exercise)): Path<(Id, Id)>,
+    Path((offering, exercise)): Path<(Id, Id)>,
 ) -> Result<String, StatusCode> {
-    let dir = gate::open_exercise(&pool, &courses, &account, &course, &exercise).await?;
+    let dir = gate::open_exercise(&pool, &courses, &account, &offering, &exercise).await?;
     fs::read_to_string(dir.join("statement.md")).map_err(gate::status_of)
 }
 
@@ -200,7 +200,7 @@ async fn submit(
         &pool,
         &courses,
         &author,
-        &submission.course,
+        &submission.offering,
         &submission.exercise,
     )
     .await?;
@@ -238,12 +238,12 @@ async fn enqueue_replacing(
 
     let id = sqlx::query_scalar!(
         r#"
-        INSERT INTO jobs (contract, course, exercise, language_pack, source, author, kind)
+        INSERT INTO jobs (contract, offering, exercise, language_pack, source, author, kind)
         VALUES ($1, $2::text, $3::text, $4::text, $5, $6, $7)
         RETURNING id AS "id!"
         "#,
         CONTRACT,
-        submission.course.as_str(),
+        submission.offering.as_str(),
         submission.exercise.as_str(),
         submission.language_pack.as_str(),
         submission.source,
@@ -269,7 +269,7 @@ mod tests {
 
     const RIGHT_PASSWORD: &str = r#"{"id": "etudiant1", "password": "log791-dev"}"#;
     const WRONG_PASSWORD: &str = r#"{"id": "etudiant1", "password": "wrong"}"#;
-    const SUM: &str = r#"{"course": "log200", "exercise": "sum", "language_pack": "python", "source": "print(0)"}"#;
+    const SUM: &str = r#"{"offering": "log200", "exercise": "sum", "language_pack": "python", "source": "print(0)"}"#;
 
     // A router without the queue's notifications. Tests build one per request, and each listener
     // would hold one of the test pool's 5 connections until the test ends (sqlx::test)
@@ -370,9 +370,9 @@ mod tests {
         signed_in_as(pool, "etudiant1").await
     }
 
-    async fn give_role(pool: &PgPool, course: &str, account: &str) {
-        sqlx::query("INSERT INTO course_roles VALUES ($1, $2, 'student') ON CONFLICT DO NOTHING")
-            .bind(course)
+    async fn give_role(pool: &PgPool, offering: &str, account: &str) {
+        sqlx::query("INSERT INTO offering_roles VALUES ($1, $2, 'student') ON CONFLICT DO NOTHING")
+            .bind(offering)
             .bind(account)
             .execute(pool)
             .await
@@ -435,7 +435,7 @@ mod tests {
         fetch(router, cookie, &format!("/submissions/{id}")).await
     }
 
-    // The log200 course with the sum exercise, as the publisher leaves it
+    // The log200 offering with the sum exercise, as the publisher leaves it
     fn published_courses(name: &str) -> PathBuf {
         let courses = env::temp_dir().join("api-tests").join(name);
         let sum = courses.join("log200/releases/abc123/exercises/sum");
@@ -452,7 +452,7 @@ mod tests {
         exercise: &str,
     ) -> (StatusCode, String) {
         let router = app(pool.clone(), Directory::unreachable(), courses);
-        let uri = format!("/courses/log200/exercises/{exercise}/statement");
+        let uri = format!("/offerings/log200/exercises/{exercise}/statement");
         fetch(router, cookie, &uri).await
     }
 
@@ -484,7 +484,7 @@ mod tests {
     async fn enqueue(pool: &PgPool) -> Uuid {
         sqlx::query_scalar(
             r#"
-                INSERT INTO jobs (contract, course, exercise, language_pack, source, author)
+                INSERT INTO jobs (contract, offering, exercise, language_pack, source, author)
                 VALUES (1, 'log200', 'sum', 'python', 'print(0)', 'etudiant1')
                 RETURNING id
             "#,
@@ -497,7 +497,7 @@ mod tests {
     async fn enqueue_at(pool: &PgPool, author: &str, exercise: &str, at: &str) -> Uuid {
         sqlx::query_scalar(
             r#"
-                INSERT INTO jobs (contract, course, exercise, language_pack, source, author, enqueued_at)
+                INSERT INTO jobs (contract, offering, exercise, language_pack, source, author, enqueued_at)
                 VALUES (1, 'log200', $1, 'python', 'print(0)', $2, $3::timestamptz)
                 RETURNING id
             "#,
@@ -512,7 +512,12 @@ mod tests {
 
     async fn get_history(pool: &PgPool, cookie: &str) -> (StatusCode, String) {
         let router = app(pool.clone(), Directory::unreachable(), PathBuf::new());
-        fetch(router, cookie, "/courses/log200/exercises/sum/submissions").await
+        fetch(
+            router,
+            cookie,
+            "/offerings/log200/exercises/sum/submissions",
+        )
+        .await
     }
 
     async fn claim(pool: &PgPool) {
@@ -604,7 +609,10 @@ mod tests {
         );
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn open_exercise_shows_its_statement(pool: PgPool) {
         schedule_sum(&pool, "-1 hour", Some("1 hour")).await;
@@ -615,7 +623,42 @@ mod tests {
         );
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
+    #[ignore = "needs PostgreSQL"]
+    async fn an_offering_reads_its_courses_content(pool: PgPool) {
+        sqlx::query("INSERT INTO offerings VALUES ('log200-h27', 'log200', 'h27')")
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query(
+            "INSERT INTO schedules VALUES ('log200-h27', 'sum', now() - interval '1 hour', NULL)",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        let cookie = signed_in(&pool).await;
+        give_role(&pool, "log200-h27", "etudiant1").await;
+        let router = app(
+            pool.clone(),
+            Directory::unreachable(),
+            published_courses("statement-offering"),
+        );
+        let (status, body) = fetch(
+            router,
+            &cookie,
+            "/offerings/log200-h27/exercises/sum/statement",
+        )
+        .await;
+        assert_eq!((status, body.as_str()), (StatusCode::OK, "# Somme"));
+    }
+
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn exercise_without_closing_stays_open(pool: PgPool) {
         schedule_sum(&pool, "-1 hour", None).await;
@@ -628,7 +671,10 @@ mod tests {
         );
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn exercise_not_yet_open_is_forbidden(pool: PgPool) {
         schedule_sum(&pool, "1 hour", Some("2 hours")).await;
@@ -641,7 +687,10 @@ mod tests {
         );
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn unscheduled_exercise_is_forbidden(pool: PgPool) {
         let courses = published_courses("statement-unscheduled");
@@ -653,7 +702,10 @@ mod tests {
         );
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn unknown_exercise_is_not_found(pool: PgPool) {
         let courses = published_courses("statement-unknown");
@@ -665,7 +717,10 @@ mod tests {
         );
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn path_escape_is_bad_request(pool: PgPool) {
         let courses = published_courses("statement-escape");
@@ -677,7 +732,10 @@ mod tests {
         );
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn statement_requires_session(pool: PgPool) {
         schedule_sum(&pool, "-1 hour", Some("1 hour")).await;
@@ -696,10 +754,13 @@ mod tests {
         assert_eq!(waiting_jobs(&pool).await, 0);
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn submission_is_queued(pool: PgPool) {
-        let body = r#"{"course": "log200", "exercise": "sum", "language_pack": "python", "source": "print(0)"}"#;
+        let body = r#"{"offering": "log200", "exercise": "sum", "language_pack": "python", "source": "print(0)"}"#;
         assert_eq!(
             post_submission(
                 &pool,
@@ -713,10 +774,13 @@ mod tests {
         assert_eq!(waiting_jobs(&pool).await, 1);
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn precheck_is_queued_as_a_precheck(pool: PgPool) {
-        let body = r#"{"course": "log200", "exercise": "sum", "language_pack": "python", "source": "print(0)", "kind": "precheck"}"#;
+        let body = r#"{"offering": "log200", "exercise": "sum", "language_pack": "python", "source": "print(0)", "kind": "precheck"}"#;
         let courses = open_sum(&pool, "submission-precheck").await;
         let cookie = signed_in(&pool).await;
         assert_eq!(
@@ -726,7 +790,10 @@ mod tests {
         assert_eq!(waiting_kind(&pool).await, "precheck");
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn missing_kind_is_a_check(pool: PgPool) {
         let courses = open_sum(&pool, "submission-no-kind").await;
@@ -738,10 +805,13 @@ mod tests {
         assert_eq!(waiting_kind(&pool).await, "check");
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn final_submission_cannot_be_requested(pool: PgPool) {
-        let body = r#"{"course": "log200", "exercise": "sum", "language_pack": "python", "source": "print(0)", "kind": "final"}"#;
+        let body = r#"{"offering": "log200", "exercise": "sum", "language_pack": "python", "source": "print(0)", "kind": "final"}"#;
         let courses = open_sum(&pool, "submission-final").await;
         let cookie = signed_in(&pool).await;
         assert_eq!(
@@ -751,10 +821,13 @@ mod tests {
         assert_eq!(waiting_jobs(&pool).await, 0);
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn invalid_identifier_is_rejected(pool: PgPool) {
-        let body = r#"{"course": "log200", "exercise": "../sum", "language_pack": "python", "source": "print(0)"}"#;
+        let body = r#"{"offering": "log200", "exercise": "../sum", "language_pack": "python", "source": "print(0)"}"#;
         assert_eq!(
             post_submission(&pool, PathBuf::new(), &signed_in(&pool).await, body).await,
             StatusCode::UNPROCESSABLE_ENTITY
@@ -762,11 +835,14 @@ mod tests {
         assert_eq!(waiting_jobs(&pool).await, 0);
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn empty_source_is_rejected(pool: PgPool) {
         let body =
-            r#"{"course": "log200", "exercise": "sum", "language_pack": "python", "source": ""}"#;
+            r#"{"offering": "log200", "exercise": "sum", "language_pack": "python", "source": ""}"#;
         assert_eq!(
             post_submission(&pool, PathBuf::new(), &signed_in(&pool).await, body).await,
             StatusCode::UNPROCESSABLE_ENTITY
@@ -774,7 +850,10 @@ mod tests {
         assert_eq!(waiting_jobs(&pool).await, 0);
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn malformed_id_is_a_bad_request(pool: PgPool) {
         assert_eq!(
@@ -785,7 +864,10 @@ mod tests {
         );
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn unknown_submission_is_not_found(pool: PgPool) {
         assert_eq!(
@@ -794,10 +876,13 @@ mod tests {
         );
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn submission_records_its_author(pool: PgPool) {
-        let body = r#"{"course": "log200", "exercise": "sum", "language_pack": "python", "source": "print(0)"}"#;
+        let body = r#"{"offering": "log200", "exercise": "sum", "language_pack": "python", "source": "print(0)"}"#;
         let cookie = signed_in_as(&pool, "etudiant2").await;
         assert_eq!(
             post_submission(
@@ -816,7 +901,10 @@ mod tests {
         assert_eq!(author, "etudiant2");
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn others_submission_is_not_found(pool: PgPool) {
         let job = enqueue(&pool).await;
@@ -827,7 +915,10 @@ mod tests {
         );
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn queued_submission_is_waiting(pool: PgPool) {
         let job = enqueue(&pool).await;
@@ -837,7 +928,10 @@ mod tests {
         );
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn judged_submission_hides_cases(pool: PgPool) {
         let failed = enqueue(&pool).await;
@@ -861,10 +955,13 @@ mod tests {
         );
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn submission_requires_session(pool: PgPool) {
-        let body = r#"{"course": "log200", "exercise": "sum", "language_pack": "python", "source": "print(0)"}"#;
+        let body = r#"{"offering": "log200", "exercise": "sum", "language_pack": "python", "source": "print(0)"}"#;
         assert_eq!(
             post_submission(&pool, PathBuf::new(), "", body).await,
             StatusCode::UNAUTHORIZED
@@ -872,7 +969,10 @@ mod tests {
         assert_eq!(waiting_jobs(&pool).await, 0);
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn expired_session_is_unauthorized(pool: PgPool) {
         let cookie = signed_in(&pool).await;
@@ -881,7 +981,7 @@ mod tests {
         )
         .execute(&pool).await.unwrap();
 
-        let body = r#"{"course": "log200", "exercise": "sum", "language_pack": "python", "source": "print(0)"}"#;
+        let body = r#"{"offering": "log200", "exercise": "sum", "language_pack": "python", "source": "print(0)"}"#;
         assert_eq!(
             post_submission(&pool, PathBuf::new(), &cookie, body).await,
             StatusCode::UNAUTHORIZED
@@ -889,11 +989,14 @@ mod tests {
         assert_eq!(waiting_jobs(&pool).await, 0);
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn session_cookie_is_found_among_others(pool: PgPool) {
         let cookie = format!("theme=dark; {}", signed_in(&pool).await);
-        let body = r#"{"course": "log200", "exercise": "sum", "language_pack": "python", "source": "print(0)"}"#;
+        let body = r#"{"offering": "log200", "exercise": "sum", "language_pack": "python", "source": "print(0)"}"#;
         assert_eq!(
             post_submission(
                 &pool,
@@ -907,7 +1010,10 @@ mod tests {
         assert_eq!(waiting_jobs(&pool).await, 1);
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL and LDAP"]
     async fn right_password_opens_a_session(pool: PgPool) {
         let response = sign_in_with(&pool, Directory::from_env().unwrap(), RIGHT_PASSWORD).await;
@@ -933,7 +1039,10 @@ mod tests {
         );
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL and LDAP"]
     async fn wrong_password_opens_no_session(pool: PgPool) {
         let response = sign_in_with(&pool, Directory::from_env().unwrap(), WRONG_PASSWORD).await;
@@ -942,12 +1051,15 @@ mod tests {
         assert_eq!(sessions(&pool).await, 0);
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn submit_to_closed_is_forbidden(pool: PgPool) {
         schedule_sum(&pool, "-2 hours", Some("-1 hour")).await;
         let courses = published_courses("submission-closed");
-        let body = r#"{"course": "log200", "exercise": "sum", "language_pack": "python", "source": "print(0)"}"#;
+        let body = r#"{"offering": "log200", "exercise": "sum", "language_pack": "python", "source": "print(0)"}"#;
         assert_eq!(
             post_submission(&pool, courses, &signed_in(&pool).await, body).await,
             StatusCode::FORBIDDEN
@@ -955,11 +1067,14 @@ mod tests {
         assert_eq!(waiting_jobs(&pool).await, 0);
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn submit_to_unpublished_is_not_found(pool: PgPool) {
         let courses = published_courses("submission-unpublished");
-        let body = r#"{"course": "log200", "exercise": "missing", "language_pack": "python", "source": "print(0)"}"#;
+        let body = r#"{"offering": "log200", "exercise": "missing", "language_pack": "python", "source": "print(0)"}"#;
         assert_eq!(
             post_submission(&pool, courses, &signed_in(&pool).await, body).await,
             StatusCode::NOT_FOUND
@@ -967,7 +1082,10 @@ mod tests {
         assert_eq!(waiting_jobs(&pool).await, 0);
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn sign_out_closes_only_its_session(pool: PgPool) {
         let leaving = signed_in(&pool).await;
@@ -989,7 +1107,10 @@ mod tests {
         );
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn signing_out_twice_is_no_content(pool: PgPool) {
         let cookie = signed_in(&pool).await;
@@ -1000,7 +1121,10 @@ mod tests {
         );
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn new_submission_replaces_waiting(pool: PgPool) {
         let previous = enqueue(&pool).await;
@@ -1017,12 +1141,15 @@ mod tests {
         assert_eq!(waiting_jobs(&pool).await, 1);
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn new_submission_keeps_a_waiting_final(pool: PgPool) {
         sqlx::query(
             r#"
-                INSERT INTO jobs (contract, kind, course, exercise, language_pack, source, author)
+                INSERT INTO jobs (contract, kind, offering, exercise, language_pack, source, author)
                 VALUES (1, 'final', 'log200', 'other', 'python', 'print(0)', 'etudiant1')
             "#,
         )
@@ -1038,7 +1165,10 @@ mod tests {
         assert_eq!(waiting_jobs(&pool).await, 2);
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn running_submission_is_not_replaced(pool: PgPool) {
         let previous = enqueue(&pool).await;
@@ -1058,7 +1188,10 @@ mod tests {
         );
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn others_waiting_run_stays(pool: PgPool) {
         enqueue(&pool).await;
@@ -1071,7 +1204,10 @@ mod tests {
         assert_eq!(waiting_jobs(&pool).await, 2);
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn catalog_lists_open_and_locked(pool: PgPool) {
         sqlx::query("INSERT INTO schedules VALUES ('log200', 'sum', '2000-01-01T00:00:00Z', NULL)")
@@ -1084,7 +1220,7 @@ mod tests {
         let router = app(pool.clone(), Directory::unreachable(), courses);
         let cookie = signed_in(&pool).await;
         assert_eq!(
-            fetch(router, &cookie, "/courses/log200/exercises").await,
+            fetch(router, &cookie, "/offerings/log200/exercises").await,
             (
                 StatusCode::OK,
                 concat!(
@@ -1096,7 +1232,10 @@ mod tests {
         );
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn catalog_requires_session(pool: PgPool) {
         let router = app(
@@ -1105,12 +1244,15 @@ mod tests {
             published_courses("catalog-anonymous"),
         );
         assert_eq!(
-            fetch(router, "", "/courses/log200/exercises").await.0,
+            fetch(router, "", "/offerings/log200/exercises").await.0,
             StatusCode::UNAUTHORIZED
         );
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn statement_requires_role(pool: PgPool) {
         let courses = open_sum(&pool, "role-statement").await;
@@ -1121,11 +1263,14 @@ mod tests {
         );
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn role_elsewhere_is_forbidden(pool: PgPool) {
         give_role(&pool, "log121", "visiteur").await;
-        let courses = open_sum(&pool, "role-other-course").await;
+        let courses = open_sum(&pool, "role-other-offering").await;
         let cookie = signed_in_without_role(&pool, "visiteur").await;
         assert_eq!(
             get_statement(&pool, courses, &cookie, "sum").await.0,
@@ -1133,7 +1278,10 @@ mod tests {
         );
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn submission_requires_role(pool: PgPool) {
         let courses = open_sum(&pool, "role-submission").await;
@@ -1145,7 +1293,10 @@ mod tests {
         assert_eq!(waiting_jobs(&pool).await, 0);
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn draft_requires_role(pool: PgPool) {
         let courses = open_sum(&pool, "role-draft").await;
@@ -1161,22 +1312,30 @@ mod tests {
         );
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn catalog_requires_role(pool: PgPool) {
         let courses = open_sum(&pool, "role-catalog").await;
         let router = app(pool.clone(), Directory::unreachable(), courses);
         let cookie = signed_in_without_role(&pool, "visiteur").await;
         assert_eq!(
-            fetch(router, &cookie, "/courses/log200/exercises").await.0,
+            fetch(router, &cookie, "/offerings/log200/exercises")
+                .await
+                .0,
             StatusCode::FORBIDDEN
         );
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn unknown_course_is_not_found(pool: PgPool) {
-        // A role, but no release: the course is not published
+        // A role, but no release: its course is not published
         give_role(&pool, "log121", "etudiant1").await;
         let router = app(
             pool.clone(),
@@ -1184,14 +1343,21 @@ mod tests {
             published_courses("catalog-unknown"),
         );
         assert_eq!(
-            fetch(router, &signed_in(&pool).await, "/courses/log121/exercises")
-                .await
-                .0,
+            fetch(
+                router,
+                &signed_in(&pool).await,
+                "/offerings/log121/exercises"
+            )
+            .await
+            .0,
             StatusCode::NOT_FOUND
         );
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn history_lists_own_runs_newest_first(pool: PgPool) {
         let older = enqueue_at(&pool, "etudiant1", "sum", "2026-01-01T08:00:00Z").await;
@@ -1214,7 +1380,10 @@ mod tests {
         );
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn history_is_per_student_and_exercise(pool: PgPool) {
         enqueue_at(&pool, "etudiant2", "sum", "2026-01-01T08:00:00Z").await;
@@ -1225,10 +1394,13 @@ mod tests {
         );
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn history_says_which_kind_each_run_is(pool: PgPool) {
-        let body = r#"{"course": "log200", "exercise": "sum", "language_pack": "python", "source": "print(0)", "kind": "precheck"}"#;
+        let body = r#"{"offering": "log200", "exercise": "sum", "language_pack": "python", "source": "print(0)", "kind": "precheck"}"#;
         let courses = open_sum(&pool, "history-kind").await;
         let cookie = signed_in(&pool).await;
         assert_eq!(
@@ -1242,7 +1414,10 @@ mod tests {
         assert!(history.contains(r#""kind":"precheck""#), "{history}");
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn a_final_submission_is_not_a_run(pool: PgPool) {
         let cookie = signed_in(&pool).await;
@@ -1258,13 +1433,19 @@ mod tests {
         assert_eq!(get_history(&pool, &cookie).await.1, "[]");
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn history_requires_session(pool: PgPool) {
         assert_eq!(get_history(&pool, "").await.0, StatusCode::UNAUTHORIZED);
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn events_start_with_latest_runs(pool: PgPool) {
         enqueue_at(&pool, "etudiant1", "sum", "2026-01-01T08:00:00Z").await;
@@ -1274,7 +1455,7 @@ mod tests {
 
         let (status, mut events) = Events::open(&pool, &signed_in(&pool).await).await;
         assert_eq!(status, StatusCode::OK);
-        // By course, then exercise: product before sum
+        // By offering, then exercise: product before sum
         assert_eq!(
             events.next().await,
             Some(format!(
@@ -1290,7 +1471,10 @@ mod tests {
         assert_eq!(events.next().await, None);
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn events_follow_own_runs_only(pool: PgPool) {
         let (_, mut events) = Events::open(&pool, &signed_in(&pool).await).await;
@@ -1322,7 +1506,10 @@ mod tests {
         assert!(next.contains(&second.to_string()), "{next}");
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn events_send_own_cases(pool: PgPool) {
         let (_, mut events) = Events::open(&pool, &signed_in(&pool).await).await;
@@ -1343,7 +1530,10 @@ mod tests {
         );
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn events_replay_cases(pool: PgPool) {
         let job = enqueue(&pool).await;
@@ -1366,7 +1556,10 @@ mod tests {
         );
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn others_cases_are_not_found(pool: PgPool) {
         let theirs = enqueue_at(&pool, "etudiant2", "sum", "2026-01-01T08:00:00Z").await;
@@ -1382,7 +1575,10 @@ mod tests {
         );
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn events_require_session(pool: PgPool) {
         assert_eq!(Events::open(&pool, "").await.0, StatusCode::UNAUTHORIZED);
@@ -1394,7 +1590,7 @@ mod tests {
         cookie: &str,
         body: impl Into<Body>,
     ) -> (StatusCode, String) {
-        let request = Request::put("/courses/log200/exercises/sum/draft")
+        let request = Request::put("/offerings/log200/exercises/sum/draft")
             .header(header::CONTENT_TYPE, "application/json")
             .header(header::COOKIE, cookie)
             .body(body.into())
@@ -1405,14 +1601,17 @@ mod tests {
 
     async fn get_draft(pool: &PgPool, courses: PathBuf, cookie: &str) -> (StatusCode, String) {
         let router = app(pool.clone(), Directory::unreachable(), courses);
-        fetch(router, cookie, "/courses/log200/exercises/sum/draft").await
+        fetch(router, cookie, "/offerings/log200/exercises/sum/draft").await
     }
 
     fn answer(status: StatusCode, body: &str) -> (StatusCode, String) {
         (status, body.to_string())
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn no_draft_yet_is_revision_zero(pool: PgPool) {
         let courses = open_sum(&pool, "draft-none").await;
@@ -1422,7 +1621,10 @@ mod tests {
         );
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn a_saved_draft_is_read_back(pool: PgPool) {
         let courses = open_sum(&pool, "draft-saved").await;
@@ -1443,7 +1645,10 @@ mod tests {
         );
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn a_stale_write_gets_the_current_draft(pool: PgPool) {
         let courses = open_sum(&pool, "draft-stale").await;
@@ -1474,7 +1679,10 @@ mod tests {
         );
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn replayed_write_is_acknowledged(pool: PgPool) {
         let courses = open_sum(&pool, "draft-replayed").await;
@@ -1488,7 +1696,10 @@ mod tests {
         }
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn racing_writes_apply_once(pool: PgPool) {
         let courses = open_sum(&pool, "draft-race").await;
@@ -1512,7 +1723,10 @@ mod tests {
         assert_eq!(statuses, [StatusCode::OK, StatusCode::CONFLICT]);
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn drafts_are_per_student(pool: PgPool) {
         let courses = open_sum(&pool, "draft-own").await;
@@ -1530,7 +1744,10 @@ mod tests {
         );
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn draft_of_closed_is_forbidden(pool: PgPool) {
         schedule_sum(&pool, "-2 hours", Some("-1 hour")).await;
@@ -1547,7 +1764,10 @@ mod tests {
         );
     }
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn an_oversized_draft_is_rejected(pool: PgPool) {
         let courses = open_sum(&pool, "draft-oversized").await;

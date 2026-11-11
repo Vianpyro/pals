@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        INSERT INTO jobs (contract, course, exercise, language_pack, source, author, kind)\n        VALUES ($1, $2::text, $3::text, $4::text, $5, $6, $7)\n        RETURNING id AS \"id!\"\n        ",
+  "query": "\n        INSERT INTO jobs (contract, offering, exercise, language_pack, source, author, kind)\n        VALUES ($1, $2::text, $3::text, $4::text, $5, $6, $7)\n        RETURNING id AS \"id!\"\n        ",
   "describe": {
     "columns": [
       {
@@ -41,5 +41,5 @@
       false
     ]
   },
-  "hash": "2107be30b92715f0f0ddd1d33fc4c9961bd713f6100edc9820d1891d640f738f"
+  "hash": "9661a8cd39c0082571436d5c898e71c2b98f17ae7ed3c19cbd2c781a3039a907"
 }

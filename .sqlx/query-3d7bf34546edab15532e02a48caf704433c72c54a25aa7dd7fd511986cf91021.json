@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "DELETE FROM course_roles WHERE course = $1::text",
+  "query": "DELETE FROM offering_roles WHERE offering = $1::text",
   "describe": {
     "columns": [],
     "parameters": {
@@ -10,5 +10,5 @@
     },
     "nullable": []
   },
-  "hash": "2f8a508ca9bc3db706f07f447d1459fd80d3fad7d5ae8b5312ea42d3bfc5639e"
+  "hash": "3d7bf34546edab15532e02a48caf704433c72c54a25aa7dd7fd511986cf91021"
 }

@@ -47,7 +47,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         };
 
         // A database error stops the judge: the job is reclaimed once its lease expires
-        let schedule = read_schedule(&mut connection, &job.course, &job.exercise).await?;
+        let schedule = read_schedule(&mut connection, &job.offering, &job.exercise).await?;
 
         // Job cannot be judged: failed so it is never reclaimed
         let assessment = match assessment(content.as_ref(), courses.as_ref(), &job, &schedule) {
@@ -239,6 +239,7 @@ mod tests {
             id: Uuid::default(),
             contract: 1,
             kind: JobKind::Check,
+            offering: "log200".to_string(),
             course: "log200".to_string(),
             exercise: exercise.into(),
             language_pack: language_pack.into(),

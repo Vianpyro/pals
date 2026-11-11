@@ -29,13 +29,13 @@ fn replayed(write: &DraftWrite, current: &Draft) -> bool {
 async fn current(
     pool: &PgPool,
     author: &str,
-    course: &Id,
+    offering: &Id,
     exercise: &Id,
 ) -> Result<Draft, StatusCode> {
     let Some(row) = sqlx::query!(
-        "SELECT revision, source FROM drafts WHERE author = $1 AND course = $2::text AND exercise = $3::text",
+        "SELECT revision, source FROM drafts WHERE author = $1 AND offering = $2::text AND exercise = $3::text",
         author,
-        course.as_str(),
+        offering.as_str(),
         exercise.as_str(),
     )
     .fetch_optional(pool)
@@ -54,22 +54,22 @@ async fn current(
 async fn apply(
     pool: &PgPool,
     author: &str,
-    course: &Id,
+    offering: &Id,
     exercise: &Id,
     write: &DraftWrite,
 ) -> Result<Option<u32>, StatusCode> {
     sqlx::query_scalar!(
         r#"
-            INSERT INTO drafts (author, course, exercise, revision, source, language_pack)
+            INSERT INTO drafts (author, offering, exercise, revision, source, language_pack)
             VALUES ($1, $2::text, $3::text, $4::bigint + 1, $5, $6::text)
-            ON CONFLICT (author, course, exercise) DO UPDATE
+            ON CONFLICT (author, offering, exercise) DO UPDATE
                 SET revision = excluded.revision, source = excluded.source,
                     language_pack = excluded.language_pack, saved_at = now()
                 WHERE drafts.revision = $4::bigint
             RETURNING revision
         "#,
         author,
-        course.as_str(),
+        offering.as_str(),
         exercise.as_str(),
         i64::from(write.base),
         write.source,
@@ -86,29 +86,31 @@ pub(super) async fn draft(
     Account(author): Account,
     State(pool): State<PgPool>,
     State(courses): State<Arc<path::Path>>,
-    Path((course, exercise)): Path<(Id, Id)>,
+    Path((offering, exercise)): Path<(Id, Id)>,
 ) -> Result<Json<Draft>, StatusCode> {
-    gate::open_exercise(&pool, &courses, &author, &course, &exercise).await?;
-    current(&pool, &author, &course, &exercise).await.map(Json)
+    gate::open_exercise(&pool, &courses, &author, &offering, &exercise).await?;
+    current(&pool, &author, &offering, &exercise)
+        .await
+        .map(Json)
 }
 
 pub(super) async fn save(
     Account(author): Account,
     State(pool): State<PgPool>,
     State(courses): State<Arc<path::Path>>,
-    Path((course, exercise)): Path<(Id, Id)>,
+    Path((offering, exercise)): Path<(Id, Id)>,
     Json(write): Json<DraftWrite>,
 ) -> Result<Response, StatusCode> {
     if write.source.len() > MAX_SOURCE {
         return Err(StatusCode::UNPROCESSABLE_ENTITY);
     }
-    gate::open_exercise(&pool, &courses, &author, &course, &exercise).await?;
+    gate::open_exercise(&pool, &courses, &author, &offering, &exercise).await?;
 
-    if let Some(revision) = apply(&pool, &author, &course, &exercise, &write).await? {
+    if let Some(revision) = apply(&pool, &author, &offering, &exercise, &write).await? {
         return Ok(Json(DraftSaved { revision }).into_response());
     }
 
-    let current = current(&pool, &author, &course, &exercise).await?;
+    let current = current(&pool, &author, &offering, &exercise).await?;
     if replayed(&write, &current) {
         return Ok(Json(DraftSaved {
             revision: current.revision,

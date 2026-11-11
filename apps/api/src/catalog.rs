@@ -1,4 +1,4 @@
-//! A course's catalog: every published exercise with its dates, open or not (ADR-0020)
+//! An offering's catalog: every published exercise with its dates, open or not (ADR-0020)
 
 use std::{path, sync::Arc, time::SystemTime};
 
@@ -16,19 +16,21 @@ pub(super) async fn catalog(
     Account(account): Account,
     State(pool): State<PgPool>,
     State(courses): State<Arc<path::Path>>,
-    Path(course): Path<Id>,
+    Path(offering): Path<Id>,
 ) -> Result<Json<Vec<CatalogEntry>>, StatusCode> {
-    gate::member(&pool, &course, &account).await?;
-    let ids = content::exercises(&courses.join(course.as_str())).map_err(gate::status_of)?;
+    let course_dir = gate::course_dir(&pool, &courses, &offering, &account).await?;
+    let ids = content::exercises(&course_dir).map_err(gate::status_of)?;
     // One instant for the whole list: two exercises never disagree about what time it is
     let now = SystemTime::now();
 
     let mut entries = Vec::with_capacity(ids.len());
     for id in ids {
-        let schedule = schedule::read(&pool, &course, &id).await.map_err(|error| {
-            eprintln!("api: catalog: {error}");
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
+        let schedule = schedule::read(&pool, &offering, &id)
+            .await
+            .map_err(|error| {
+                eprintln!("api: catalog: {error}");
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?;
         let window = schedule.window();
         entries.push(CatalogEntry {
             id,

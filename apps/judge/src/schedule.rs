@@ -6,12 +6,12 @@ use sqlx::PgConnection;
 // An exercise without a row gets no window: its jobs are never judged
 pub async fn read_schedule(
     connection: &mut PgConnection,
-    course: &str,
+    offering: &str,
     exercise: &str,
 ) -> sqlx::Result<Schedule> {
     let offering = sqlx::query!(
-        "SELECT opens_at, closes_at FROM schedules WHERE course = $1::text AND activity = $2::text",
-        course,
+        "SELECT opens_at, closes_at FROM schedules WHERE offering = $1::text AND activity = $2::text",
+        offering,
         exercise
     )
     .fetch_optional(connection)
@@ -33,7 +33,10 @@ mod tests {
     use sqlx::PgPool;
     use std::time::SystemTime;
 
-    #[sqlx::test(migrations = "../../db/migrations")]
+    #[sqlx::test(
+        migrations = "../../db/migrations",
+        fixtures(path = "../../../db/fixtures", scripts("offerings"))
+    )]
     #[ignore = "needs PostgreSQL"]
     async fn judge_reads_the_offering_window(pool: PgPool) {
         sqlx::query(

@@ -2,4 +2,4 @@
 import type { Id } from "./Id";
 import type { RunKind } from "./RunKind";
 
-export type Submission = { course: Id, exercise: Id, language_pack: Id, source: string, kind?: RunKind, };
+export type Submission = { offering: Id, exercise: Id, language_pack: Id, source: string, kind?: RunKind, };

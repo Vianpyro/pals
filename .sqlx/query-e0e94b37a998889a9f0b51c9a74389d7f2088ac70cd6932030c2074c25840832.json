@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "INSERT INTO course_roles (course, account, role) VALUES ($1::text, $2, $3)",
+  "query": "INSERT INTO offering_roles (offering, account, role) VALUES ($1::text, $2, $3)",
   "describe": {
     "columns": [],
     "parameters": {
@@ -9,7 +9,7 @@
         "Text",
         {
           "Custom": {
-            "name": "course_role",
+            "name": "offering_role",
             "kind": {
               "Enum": [
                 "student",
@@ -24,5 +24,5 @@
     },
     "nullable": []
   },
-  "hash": "e768eca30bb1dbfa28a695c76efa9cbb307a733f52771e2844c3d4384068c4b8"
+  "hash": "e0e94b37a998889a9f0b51c9a74389d7f2088ac70cd6932030c2074c25840832"
 }
