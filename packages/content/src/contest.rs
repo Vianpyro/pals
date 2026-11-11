@@ -4,8 +4,19 @@ use std::{collections::HashSet, fs, io, path::Path};
 
 use contracts::Id;
 use serde::Deserialize;
+use sha2::{Digest, Sha256};
 
 use crate::{active_release, exercise::exercise_dir};
+
+// Every order the three drawn exercises can be shown in
+const ORDERS: [[usize; 3]; 6] = [
+    [0, 1, 2],
+    [0, 2, 1],
+    [1, 0, 2],
+    [1, 2, 0],
+    [2, 0, 1],
+    [2, 1, 0],
+];
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -17,6 +28,31 @@ pub struct Slot {
 #[serde(deny_unknown_fields)]
 pub struct Contest {
     pub slots: Vec<Slot>,
+}
+
+impl Contest {
+    pub fn draw(&self, offering: &str, contest: &Id, sitting: &str, student: &str) -> [&Id; 3] {
+        let exercises = words(&[offering, contest.as_str(), sitting]);
+        let order = words(&[offering, contest.as_str(), sitting, student])[0];
+
+        let pick = |slot: usize| {
+            let pool = &self.slots[slot].pool;
+            &pool[(exercises[slot] % pool.len() as u64) as usize]
+        };
+        ORDERS[(order % 6) as usize].map(pick)
+    }
+}
+
+// Recomputed on every request, never stored: SHA-256, not DefaultHasher, so the draw never changes (ADR-0043)
+fn words(parts: &[&str]) -> [u64; 4] {
+    let mut hasher = Sha256::new();
+    for part in parts {
+        hasher.update((part.len() as u64).to_le_bytes());
+        hasher.update(part);
+    }
+    let digest = hasher.finalize();
+    let (chunks, _) = digest.as_chunks::<8>();
+    std::array::from_fn(|i| u64::from_le_bytes(chunks[i]))
 }
 
 pub fn contest(course_dir: &Path, id: &Id) -> io::Result<Contest> {
@@ -77,6 +113,18 @@ pool = ["d"]
         contest(&course(name, text), &"weekly".parse().unwrap())
     }
 
+    fn drawn(contest: &Contest, sitting: &str, student: &str) -> [String; 3] {
+        let weekly = "weekly".parse().unwrap();
+        contest
+            .draw("log200-a26", &weekly, sitting, student)
+            .map(|id| id.as_str().to_owned())
+    }
+
+    fn sorted(mut names: [String; 3]) -> [String; 3] {
+        names.sort();
+        names
+    }
+
     #[track_caller]
     fn assert_kind(result: io::Result<Contest>, kind: io::ErrorKind) {
         assert_matches!(result, Err(error) if error.kind() == kind);
@@ -132,5 +180,41 @@ pool = ["d"]
     fn unknown_field_is_refused() {
         let text = format!("points = 3\n{VALID}");
         assert_kind(read("contest-field", &text), io::ErrorKind::InvalidData);
+    }
+
+    #[test]
+    fn draw_takes_one_exercise_per_slot() {
+        let contest = read("contest-draw-slots", VALID).unwrap();
+        for sitting in ["01", "02", "03", "04", "05"] {
+            let names = sorted(drawn(&contest, sitting, "alice"));
+            assert!(names[0] == "a" || names[0] == "b");
+            assert_eq!(names[1..], ["c", "d"]);
+        }
+    }
+
+    #[test]
+    fn a_sitting_shares_its_exercises() {
+        let contest = read("contest-draw-shared", VALID).unwrap();
+        let alice = drawn(&contest, "01", "alice");
+        let orders: HashSet<_> = (0..20)
+            .map(|i| drawn(&contest, "01", &format!("student{i}")))
+            .inspect(|names| assert_eq!(sorted(names.clone()), sorted(alice.clone())))
+            .collect();
+        assert!(orders.len() > 1);
+    }
+
+    #[test]
+    fn sittings_can_draw_differently() {
+        let contest = read("contest-draw-sittings", VALID).unwrap();
+        let draws: HashSet<_> = (0..20)
+            .map(|i| sorted(drawn(&contest, &format!("{i:02}"), "alice")))
+            .collect();
+        assert!(draws.len() > 1);
+    }
+
+    #[test]
+    fn draw_never_changes() {
+        let contest = read("contest-draw-pinned", VALID).unwrap();
+        assert_eq!(drawn(&contest, "01", "alice"), ["a", "d", "c"]);
     }
 }

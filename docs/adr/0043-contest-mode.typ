@@ -23,17 +23,19 @@ Until now an activity is a single exercise: a row of `schedules` names an exerci
   [Contest in the database], [Edited in the platform without a release.], [A second place where content lives; the release no longer says what a session holds.],
   [Grade by sum of item scores (#adr("0015"))], [Already decided; no new rule.], [Gives a grade per problem: solving the hard one would weigh more, which is not the rule.],
   [Grade by number of problems solved], [The rule of the course, whatever the draw.], [A rule specific to this mode.],
+  [Draw per student], [Neighbours rarely share a problem.], [Students who sit together face different difficulties.],
+  [Draw per sitting, order per student], [Same difficulty for everyone who sits together; the order still differs between neighbours.], [Neighbours share the problems; only the order and supervision separate them.],
 )
 
 === Decision
 
 *A contest is an activity mode (#adr("0014")) and a file of the content*, `contests/<id>.toml`, published in the release. It holds exactly three slots, each a pool of exercise identifiers. A pool is not empty, an exercise belongs to at most one pool, and every exercise exists in the release. The `content` package refuses any other file.
 
-*The draw is deterministic*, as in #adr("0015"): the server derives a seed from (offering, contest, student) and draws one exercise per slot, then the order in which the three are shown. A reload or a Safe Exam Browser restart shows the same problems in the same order. The seed uses a stable, documented hash: never Rust's `DefaultHasher`, whose algorithm may change between releases.
+*The draw is deterministic*, as in #adr("0015"), and made per sitting. A sitting is the row of `schedules` that opens the contest to the student: their group's row, the offering's row, or their extension; it is identified by its group or student, never by its dates, so a postponement draws nothing new. Every student of a sitting gets the same three exercises, drawn one per slot from a seed of (offering, contest, sitting). The order they are shown in is drawn per student, from a seed of (offering, contest, sitting, student). A reload or a Safe Exam Browser restart shows the same problems in the same order. Each seed is SHA-256 over length-prefixed parts: never Rust's `DefaultHasher`, whose algorithm may change between releases.
 
 *A student reaches only their three exercises*, and only through the contest. The other exercises of the pools stay closed to them. The window is the contest's row in `schedules`, with the activity being the contest's identifier, and the single opening rule of #adr("0020") applies.
 
-*Accommodations apply.* Each student's extra time is a percentage stored in the platform per offering and student, entered by staff, and applied by the opening rule (#adr("0020")). A student's drafts become final submissions at the close of their own window, not at the contest's row (#adr("0040")).
+*Accommodations apply.* Each student's extra time is a percentage stored in the platform per offering and student, entered by staff, and applied by the opening rule (#adr("0020")). A student's drafts become final submissions at the close of their own window, not at the contest's row (#adr("0040")). An accommodated student starts with their sitting and only finishes later: they keep its exercises.
 
 *A problem is solved* when the final job of its exercise has every verdict `passed`, hidden cases included. A partial result, an empty draft or no draft counts as unsolved.
 
@@ -46,9 +48,11 @@ Until now an activity is a single exercise: a row of `schedules` names an exerci
 - The scale and the number of problems need a code change until they are configurable; they move to the contest file when a second course needs another rule.
 - Changing a contest's pools while a session is open draws other exercises for its students. Changes are published before the session; a guard is added if it happens.
 - A pool of one exercise gives every student the same problem for that slot.
+- Students of a sitting can help each other on the same problems; only the order and supervision prevent it.
+- Two groups at different times may draw the same exercises by chance: the draw reduces word of mouth between groups (#adr("0020")), it does not prevent it.
 - A contest holds no date: groups get their own rows in `schedules` (#adr("0020")), and the judge reservation follows them (#adr("0021")).
 - The accommodation table holds student data and must be included when an offering is purged (#adr("0012")).
 
 #validation(id: "V-0043")[
-  A contest file with two slots, an empty pool, an exercise in two pools, an unknown field or an unknown exercise is refused. The same student gets the same three exercises in the same order after a reload, two students can get different ones, and the draw is unchanged after a Rust update. A student cannot open an exercise of a pool they did not draw. A student with 50 % extra time can still save at 2 h 30 min, and their final submission is their draft at that instant. Final jobs with 0, 1, 2 and 3 problems fully passed give 0, 50, 90 and 100 %; a problem with one hidden case failed counts as unsolved, whichever slot it came from. No grade is shown while a final job is pending or failed, nor before the last accommodated window closes.
+  A contest file with two slots, an empty pool, an exercise in two pools, an unknown field or an unknown exercise is refused. The same student gets the same three exercises in the same order after a reload. Every student of a sitting gets the same three exercises, two of them can see them in a different order, and two sittings can get different ones. The draw is unchanged after a Rust update and after the sitting is postponed. A student cannot open an exercise of a pool they did not draw. A student with 50 % extra time can still save at 2 h 30 min, and their final submission is their draft at that instant. Final jobs with 0, 1, 2 and 3 problems fully passed give 0, 50, 90 and 100 %; a problem with one hidden case failed counts as unsolved, whichever slot it came from. No grade is shown while a final job is pending or failed, nor before the last accommodated window closes.
 ]

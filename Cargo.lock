@@ -248,6 +248,7 @@ version = "0.1.57"
 dependencies = [
  "contracts",
  "serde",
+ "sha2 0.11.1",
  "toml",
 ]
 

@@ -8,6 +8,7 @@ publish.workspace = true
 [dependencies]
 contracts.workspace = true
 serde = { version = "1.0.229", features = ["derive"] }
+sha2 = "0.11.1"
 toml = { version = "1.2.1", default-features = false, features = [
     "parse",
     "serde",
