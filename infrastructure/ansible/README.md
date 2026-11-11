@@ -65,7 +65,7 @@ The dev container works. Otherwise, a Linux machine with:
 |---|---|
 | Deploy a new version | Change `log791_version`, then run `site.yml` |
 | Publish a course's new content | Change the course's `version`, then run `site.yml`. Nothing restarts. |
-| Replace a course's roster | `ansible-playbook -i inventory/ets enroll.yml -e course=log200 -e roster=roster.csv` (CSV `account,role`; whoever is missing loses their role) |
+| Replace an offering's roster | `ansible-playbook -i inventory/ets enroll.yml -e offering=log200-a26 -e roster=roster.csv` (CSV `account,role`; whoever is missing loses their role; the `offerings` row must exist) |
 | Check what would change | `ansible-playbook -i inventory/ets site.yml --check --diff` |
 | Check that nothing drifted | `bash drift.sh`: the same check, which fails if any VM differs from `site.yml` |
 | Before an exam period | `ansible-playbook -i inventory/ets pre-exam.yml`: stops the automatic upgrades, pulls every pack image, then checks disk space, the judges, last night's backup and the API |

@@ -25,11 +25,11 @@ function serve(response: Response | "unreachable"): Sent[] {
     return sent;
 }
 
-test("reads a course's catalog, its identifier kept inside one path segment", async () => {
+test("reads an offering's catalog, its identifier kept inside one path segment", async () => {
     const entries = [{ id: "sum", open: true, opens_at: null, closes_at: null }];
     const sent = serve(Response.json(entries));
     assert.deepEqual(await catalog("log/200"), { ok: true, value: entries });
-    assert.equal(sent[0].url, "/api/courses/log%2F200/exercises");
+    assert.equal(sent[0].url, "/api/offerings/log%2F200/exercises");
 });
 
 test("an error status is a failure carrying it", async () => {
@@ -44,7 +44,7 @@ test("a server out of reach is a failure, not an exception", async () => {
 
 test("a submission is posted as JSON and answers the new run's id", async () => {
     const sent = serve(Response.json({ id: "0193" }, { status: 202 }));
-    const submission = { course: "log200", exercise: "sum", language_pack: "python", source: "print(1)" };
+    const submission = { offering: "log200", exercise: "sum", language_pack: "python", source: "print(1)" };
     assert.deepEqual(await submit(submission), { ok: true, value: { id: "0193" } });
     assert.equal(sent[0].method, "POST");
     assert.equal(sent[0].headers.get("Content-Type"), "application/json");
@@ -63,7 +63,7 @@ test("a draft is put as JSON on its exercise and answers the revision it became"
         value: { kind: "saved", revision: 4 },
     });
     assert.equal(sent[0].method, "PUT");
-    assert.equal(sent[0].url, "/api/courses/log200/exercises/sum/draft");
+    assert.equal(sent[0].url, "/api/offerings/log200/exercises/sum/draft");
     assert.deepEqual(JSON.parse(sent[0].body ?? ""), { base: 3, source: "print(1)", language_pack: "python" });
 });
 

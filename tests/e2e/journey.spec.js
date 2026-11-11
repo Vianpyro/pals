@@ -30,9 +30,9 @@ test("a wrong password is refused", async ({ page, student }) => {
     await expect(page.getByRole("button", { name: "Se connecter" })).toBeVisible();
 });
 
-test("an account without a role in the course is told so", async ({ page }) => {
+test("an account without a role in the offering is told so", async ({ page }) => {
     await page.goto("/");
-    // Signs in, but demo.sh leaves it off the course's roster
+    // Signs in, but demo.sh leaves it off the offering's roster
     await page.getByLabel("Identifiant").fill("admin1");
     await page.getByLabel("Mot de passe").fill("log791-dev");
     await page.getByRole("button", { name: "Se connecter" }).click();

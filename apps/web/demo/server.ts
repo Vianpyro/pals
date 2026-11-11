@@ -12,15 +12,15 @@ import type { KeyValues } from "./storage.ts";
 /** Shown on the page: a demo account, never anyone's real password. */
 export const PASSWORD = "log791-dev";
 
-type Content = { course: string; exercises: readonly Exercise[] };
+type Content = { offering: string; exercises: readonly Exercise[] };
 
 const ok = <T>(value: T): Api.Outcome<T> => ({ ok: true, value });
 const refused = (status: number): Api.Outcome<never> => ({ ok: false, failure: { kind: "status", status } });
 
-const findExercise = (content: Content, course: string, id: string) =>
-    course === content.course ? content.exercises.find((known) => known.id === id) : undefined;
+const findExercise = (content: Content, offering: string, id: string) =>
+    offering === content.offering ? content.exercises.find((known) => known.id === id) : undefined;
 
-const draftKey = (student: string, course: string, id: string) => `draft:${student}:${course}:${id}`;
+const draftKey = (student: string, offering: string, id: string) => `draft:${student}:${offering}:${id}`;
 
 export function createServer(
     storage: KeyValues,
@@ -37,9 +37,9 @@ export function createServer(
     }
 
     /** Refuses as the API does: no session first, then no such exercise. */
-    const gate = <T>(course: string, id: string, answer: (student: string, exercise: Exercise) => Api.Outcome<T>) =>
+    const gate = <T>(offering: string, id: string, answer: (student: string, exercise: Exercise) => Api.Outcome<T>) =>
         signedIn((student) => {
-            const exercise = findExercise(content, course, id);
+            const exercise = findExercise(content, offering, id);
             return exercise ? answer(student, exercise) : refused(404);
         });
 
@@ -56,30 +56,30 @@ export function createServer(
             return ok(undefined);
         },
 
-        catalog: async (course) =>
+        catalog: async (offering) =>
             signedIn(() => {
-                if (course !== content.course) return refused(404);
+                if (offering !== content.offering) return refused(404);
                 return ok(content.exercises.map(({ id }) => ({ id, open: true, opens_at: null, closes_at: null })));
             }),
 
-        statement: async (course, id) => gate(course, id, (_, exercise) => ok(exercise.statement)),
+        statement: async (offering, id) => gate(offering, id, (_, exercise) => ok(exercise.statement)),
 
-        history: async (course, id) => gate(course, id, (student) => ok(runs.of({ student, course, exercise: id }))),
+        history: async (offering, id) => gate(offering, id, (student) => ok(runs.of({ student, offering, exercise: id }))),
 
-        draft: async (course, id) => gate(course, id, (student) => ok(readDraft(records, draftKey(student, course, id)))),
+        draft: async (offering, id) => gate(offering, id, (student) => ok(readDraft(records, draftKey(student, offering, id)))),
 
-        saveDraft: async (course, id, write) =>
-            gate(course, id, (student) => {
-                const saved = writeDraft(records, draftKey(student, course, id), write);
+        saveDraft: async (offering, id, write) =>
+            gate(offering, id, (student) => {
+                const saved = writeDraft(records, draftKey(student, offering, id), write);
                 // 422 is how the API refuses a draft that is too large, and the page says so
                 return saved ? ok(saved) : refused(422);
             }),
 
-        submit: async ({ course, exercise: id, language_pack, source }) =>
-            gate(course, id, (student, exercise) => {
+        submit: async ({ offering, exercise: id, language_pack, source }) =>
+            gate(offering, id, (student, exercise) => {
                 // Pyodide runs Python only
                 if (language_pack !== "python") return refused(422);
-                return ok({ id: runs.start({ student, course, exercise: id }, exercise.cases, source) });
+                return ok({ id: runs.start({ student, offering, exercise: id }, exercise.cases, source) });
             }),
 
         progress: async (id) =>

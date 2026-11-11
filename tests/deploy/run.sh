@@ -58,15 +58,17 @@ fi
 
 echo "Enrolling a roster, opening the exercise and a session"
 printf 'account,role\netudiant1,student\n' > "$work/roster.csv"
-ansible-playbook -i inventory/local enroll.yml -e course=log200 -e "roster=$work/roster.csv"
 docker exec log791-test-db sudo -u postgres psql -q -v ON_ERROR_STOP=1 log791 -c "
-  INSERT INTO schedules VALUES ('log200', 'sum', now() - interval '1 hour', NULL);
+  INSERT INTO offerings VALUES ('log200-a26', 'log200', 'a26');"
+ansible-playbook -i inventory/local enroll.yml -e offering=log200-a26 -e "roster=$work/roster.csv"
+docker exec log791-test-db sudo -u postgres psql -q -v ON_ERROR_STOP=1 log791 -c "
+  INSERT INTO schedules VALUES ('log200-a26', 'sum', now() - interval '1 hour', NULL);
   INSERT INTO sessions (token_hash, account) VALUES (sha256('deploy-test'::bytea), 'etudiant1');"
 
 echo "Submitting through nginx"
 api() { docker exec log791-test-web curl -sfk -H 'cookie: __Host-session=deploy-test' "$@"; }
 solution=$(<"$root/packs/languages/python/conformance/passed/sum.py")
-submission=$(python3 -c 'import json, sys; print(json.dumps({"course": "log200", "exercise": "sum", "language_pack": "python", "source": sys.argv[1]}))' "$solution")
+submission=$(python3 -c 'import json, sys; print(json.dumps({"offering": "log200-a26", "exercise": "sum", "language_pack": "python", "source": sys.argv[1]}))' "$solution")
 id=$(api -H 'content-type: application/json' -d "$submission" https://localhost/api/submissions | python3 -c 'import json, sys; print(json.load(sys.stdin)["id"])')
 for _ in $(seq 60); do
   run=$(api "https://localhost/api/submissions/$id")
@@ -86,7 +88,7 @@ esac
 # A backup nobody restored is not a backup: tonight's dump, restored apart, holds the same rows
 echo "Restoring the nightly backup into a scratch database"
 docker exec log791-test-db systemctl start log791-backup.service
-counts='SELECT (SELECT count(*) FROM jobs) || '"'"' '"'"' || (SELECT count(*) FROM job_cases) || '"'"' '"'"' || (SELECT count(*) FROM course_roles)'
+counts='SELECT (SELECT count(*) FROM jobs) || '"'"' '"'"' || (SELECT count(*) FROM job_cases) || '"'"' '"'"' || (SELECT count(*) FROM offering_roles)'
 docker exec log791-test-db sudo -u postgres sh -euc '
   dump=$(ls -t /var/backups/log791/*.dump | head -1)
   dropdb --if-exists log791_restore

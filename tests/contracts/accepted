@@ -2,3 +2,4 @@
 # then its reason after a #, e.g. "RunStatus  # cancelled: the old interface shows its fallback text".
 # Emptied once the release that made them is out.
 DraftWrite  # language_pack: never deployed, no tab from an older interface exists
+Submission  # course renamed offering (ADR-0012): never deployed, no tab from an older interface exists

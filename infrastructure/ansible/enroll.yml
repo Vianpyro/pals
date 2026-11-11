@@ -1,27 +1,27 @@
 ---
-# Replaces a course's roster with a CSV file (account,role), which is the whole course: an account
-# missing from it loses its role (ADR-0012). The database owner's password stays in the vault.
-#   ansible-playbook -i inventory/ets enroll.yml -e course=log200 -e roster=/path/to/roster.csv
+# Replaces an offering's roster with a CSV file (account,role), which is the whole offering: an account
+# missing from it loses its role (ADR-0012). The offering row must exist. The database owner's password stays in the vault.
+#   ansible-playbook -i inventory/ets enroll.yml -e offering=log200-a26 -e roster=/path/to/roster.csv
 
 - name: The database host tells its address, unless the inventory sets log791_address
   hosts: db
   gather_facts: true
   tasks: []
 
-- name: A web VM enrolls the course's roster
+- name: A web VM enrolls the offering's roster
   hosts: web[0]
   become: true
   tasks:
-    - name: Check the course and the roster file
+    - name: Check the offering and the roster file
       ansible.builtin.assert:
         that:
-          - course is defined
+          - offering is defined
           - roster is defined
-        fail_msg: "Pass -e course=<course> -e roster=<file.csv>"
+        fail_msg: "Pass -e offering=<offering> -e roster=<file.csv>"
 
     - name: Enroll the roster
       ansible.builtin.command:
-        argv: ["{{ log791_bin }}/api", enroll, "{{ course }}"]
+        argv: ["{{ log791_bin }}/api", enroll, "{{ offering }}"]
         stdin: "{{ lookup('ansible.builtin.file', roster) }}"
       environment:
         DATABASE_URL: "{{ log791_database_owner_url }}"

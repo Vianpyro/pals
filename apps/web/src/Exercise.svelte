@@ -10,7 +10,7 @@
     let {
         t,
         say,
-        course,
+        offering,
         live,
         cases,
         streaming,
@@ -20,7 +20,7 @@
     }: {
         t: Translate;
         say: (text: string) => void;
-        course: string;
+        offering: string;
         /** The runs as the event stream last told them, by id (App.svelte) */
         live: Record<string, Run>;
         /** The visible cases the event stream reported, by run (App.svelte) */
@@ -61,7 +61,7 @@
     });
 
     async function showHistory() {
-        const outcome = await history(course, id);
+        const outcome = await history(offering, id);
         if (!outcome.ok && isSignedOut(outcome.failure)) return onSignedOut();
         // Emptied on error too: the list of the exercise shown before must not stay under this one
         runs = outcome.ok ? outcome.value : [];
@@ -81,13 +81,13 @@
     }
 
     async function openDraft() {
-        const outcome = await draft(course, id);
+        const outcome = await draft(offering, id);
         if (!outcome.ok && isSignedOut(outcome.failure)) return onSignedOut();
         if (!outcome.ok) say(failureText(t, outcome.failure, { 403: "exercise.notOpen", 404: "exercise.notFound" }));
         // Without the server's copy, from revision 0: a save over the one it holds then shows both (ADR-0038)
         const start = outcome.ok ? outcome.value : { revision: 0, source: "" };
         source = start.source;
-        saver = new Autosave(start, (write) => saveDraft(course, id, { ...write, language_pack: PACK }), showDraftState);
+        saver = new Autosave(start, (write) => saveDraft(offering, id, { ...write, language_pack: PACK }), showDraftState);
         loading = false;
     }
 
@@ -117,7 +117,7 @@
         // The submitted code is also the draft to find again; the submission does not wait for it
         void saver?.flush();
         try {
-            const outcome = await submit({ course, exercise: id, language_pack: PACK, source });
+            const outcome = await submit({ offering, exercise: id, language_pack: PACK, source });
             if (!outcome.ok) {
                 if (isSignedOut(outcome.failure)) {
                     say(t("submission.sessionExpired"));

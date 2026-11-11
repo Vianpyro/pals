@@ -15,5 +15,5 @@ const python = createPython(
     { runMs: 10_000, loadMs: 120_000 },
 );
 
-// The course .devcontainer/demo.sh publishes the examples as, and App.svelte opens by default
-export const server = createServer(browserStorage(), { course: "log200", exercises: readExercises(files) }, python);
+// The offering .devcontainer/demo.sh opens the examples in, and App.svelte opens by default
+export const server = createServer(browserStorage(), { offering: "log200-a26", exercises: readExercises(files) }, python);

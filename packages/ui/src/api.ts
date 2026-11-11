@@ -52,20 +52,20 @@ async function call<T>(
     }
 }
 
-const exercise = (course: Id, id: Id) =>
-    `/courses/${encodeURIComponent(course)}/exercises/${encodeURIComponent(id)}`;
+const exercise = (offering: Id, id: Id) =>
+    `/offerings/${encodeURIComponent(offering)}/exercises/${encodeURIComponent(id)}`;
 
 export const signIn = (credentials: Credentials) => call("POST", "/sessions", json<Identity>, credentials);
 export const signOut = () => call("DELETE", "/sessions", nothing);
 
-export const catalog = (course: Id) =>
-    call("GET", `/courses/${encodeURIComponent(course)}/exercises`, json<CatalogEntry[]>);
-export const statement = (course: Id, id: Id) => call("GET", `${exercise(course, id)}/statement`, text);
+export const catalog = (offering: Id) =>
+    call("GET", `/offerings/${encodeURIComponent(offering)}/exercises`, json<CatalogEntry[]>);
+export const statement = (offering: Id, id: Id) => call("GET", `${exercise(offering, id)}/statement`, text);
 /** The student's own runs on an exercise, newest first */
-export const history = (course: Id, id: Id) => call("GET", `${exercise(course, id)}/submissions`, json<Run[]>);
+export const history = (offering: Id, id: Id) => call("GET", `${exercise(offering, id)}/submissions`, json<Run[]>);
 
 /** The student's draft of an exercise: revision 0 and an empty source when never written (ADR-0038) */
-export const draft = (course: Id, id: Id) => call("GET", `${exercise(course, id)}/draft`, json<Draft>);
+export const draft = (offering: Id, id: Id) => call("GET", `${exercise(offering, id)}/draft`, json<Draft>);
 
 /** A draft write applied as a new revision, or refused because it was based on an older one. */
 export type DraftSave = { kind: "saved"; revision: number } | { kind: "conflict"; current: Draft };
@@ -76,8 +76,8 @@ const savedOrCurrent = async (response: Response): Promise<DraftSave> =>
         : { kind: "saved", revision: (await json<DraftSaved>(response)).revision };
 
 // A 409 is an answer, not a failure: it carries the current draft for the student to choose from
-export const saveDraft = (course: Id, id: Id, write: DraftWrite) =>
-    call("PUT", `${exercise(course, id)}/draft`, savedOrCurrent, write, [409]);
+export const saveDraft = (offering: Id, id: Id, write: DraftWrite) =>
+    call("PUT", `${exercise(offering, id)}/draft`, savedOrCurrent, write, [409]);
 
 export const submit = (submission: Submission) => call("POST", "/submissions", json<Submitted>, submission);
 export const progress = (run: string) => call("GET", `/submissions/${encodeURIComponent(run)}`, json<RunStatus>);

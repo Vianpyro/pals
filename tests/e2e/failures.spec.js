@@ -2,7 +2,7 @@
 // The page itself still comes from nginx, with its CSP.
 import { expect, test } from "./fixtures.js";
 
-const CATALOG = "**/api/courses/log200/exercises";
+const CATALOG = "**/api/offerings/log200-a26/exercises";
 const DRAFT = `${CATALOG}/sum/draft`;
 
 // A signed-in student with the sum exercise open, every API answer simulated

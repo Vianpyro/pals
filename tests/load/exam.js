@@ -7,7 +7,7 @@ import { readFileSync } from "node:fs";
 
 const SUBMIT_EVERY = 180;
 const DRAFT_EVERY = 2.5; // The document's 0.4 writes per second per student, all counted as drafts
-const COURSE = "log200";
+const OFFERING = "log200-a26";
 const EXERCISE = "sum";
 
 const [url, studentsArg, mode, secondsArg, pack, sourceFile] = process.argv.slice(2);
@@ -38,7 +38,7 @@ async function request(student, path, method, body) {
 }
 
 const submit = (student) => request(student, "/submissions", "POST", {
-    course: COURSE,
+    offering: OFFERING,
     exercise: EXERCISE,
     language_pack: pack,
     source,
@@ -57,7 +57,7 @@ async function every(mean, action) {
 async function drafting(student) {
     let base = 0;
     await every(DRAFT_EVERY, async () => {
-        const saved = await request(student, `/courses/${COURSE}/exercises/${EXERCISE}/draft`, "PUT", {
+        const saved = await request(student, `/offerings/${OFFERING}/exercises/${EXERCISE}/draft`, "PUT", {
             base,
             source: `${source}\n# ${base}`,
         });

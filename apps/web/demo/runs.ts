@@ -7,13 +7,13 @@ import type { Records } from "./records.ts";
 
 const MAX_RUNS = 50;
 
-type Owner = { student: string; course: string; exercise: string };
+type Owner = { student: string; offering: string; exercise: string };
 type StoredRun = Owner & { run: Run };
 
 export type RunCase = (source: string, input: string) => Promise<Outcome>;
 
 const unjudged = ({ state }: Run) => state === "waiting" || state === "running";
-const sameOwner = (a: Owner, b: Owner) => a.student === b.student && a.course === b.course && a.exercise === b.exercise;
+const sameOwner = (a: Owner, b: Owner) => a.student === b.student && a.offering === b.offering && a.exercise === b.exercise;
 
 export function createRuns(records: Records, runCase: RunCase, newId: () => string) {
     const followers = new Set<Listeners>();

@@ -14,8 +14,8 @@
 
     let { t }: { t: Translate } = $props();
 
-    // shortcut: one course picked by the URL, until the API lists a student's courses (ADR-0012)
-    const course = new URLSearchParams(location.search).get("course") ?? "log200";
+    // shortcut: one offering picked by the URL, until the API lists a student's offerings (ADR-0012)
+    const offering = new URLSearchParams(location.search).get("offering") ?? "log200-a26";
 
     let view: "loading" | "sign-in" | "course" = $state("loading");
     let entries: CatalogEntry[] = $state([]);
@@ -44,7 +44,7 @@
     });
 
     async function openCourse() {
-        const outcome = await catalog(course);
+        const outcome = await catalog(offering);
         if (!outcome.ok) {
             if (isSignedOut(outcome.failure)) view = "sign-in";
             else say(failureText(t, outcome.failure, { 403: "catalog.notEnrolled", 404: "catalog.unknownCourse" }));
@@ -58,7 +58,7 @@
     async function openExercise(id: string) {
         // Saved first: reopening the same exercise must read this draft, not the one before it
         await shown?.flush();
-        const outcome = await statement(course, id);
+        const outcome = await statement(offering, id);
         if (!outcome.ok) {
             if (isSignedOut(outcome.failure)) view = "sign-in";
             else say(failureText(t, outcome.failure, { 403: "exercise.notOpen", 404: "exercise.notFound" }));
@@ -102,7 +102,7 @@
                         bind:this={shown}
                         {t}
                         {say}
-                        {course}
+                        {offering}
                         {live}
                         {cases}
                         {streaming}
