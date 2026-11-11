@@ -3,6 +3,7 @@
 use std::{assert_matches, fs, io, path::PathBuf};
 
 pub(crate) const CONTEST: &str = r#"
+minutes = 120
 [[slots]]
 pool = ["a", "b"]
 [[slots]]

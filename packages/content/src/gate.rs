@@ -8,12 +8,12 @@ use std::{
 
 use contracts::Id;
 
-use crate::{Schedule, active_release, contest, exercise::exercise_dir};
+use crate::{Schedule, Sitting, active_release, contest, exercise::exercise_dir};
 
 #[derive(Debug, Clone, Copy)]
 pub struct Seat<'a> {
     pub offering: &'a str,
-    pub sitting: &'a str,
+    pub sitting: Sitting<'a>,
     pub student: &'a str,
 }
 
@@ -65,7 +65,7 @@ mod tests {
 
     const ALICE: Seat = Seat {
         offering: "log200-a26",
-        sitting: "01",
+        sitting: Sitting::Offering,
         student: "alice",
     };
 
