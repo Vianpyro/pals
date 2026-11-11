@@ -85,29 +85,8 @@ fn invalid(reason: &str) -> io::Error {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::fixtures::temp_dir;
-    use std::{assert_matches, path::PathBuf};
-
-    const VALID: &str = r#"
-[[slots]]
-pool = ["a", "b"]
-[[slots]]
-pool = ["c"]
-[[slots]]
-pool = ["d"]
-"#;
-
-    fn course(name: &str, contest: &str) -> PathBuf {
-        let course = temp_dir(name);
-        fs::write(course.join("current"), "abc123").unwrap();
-        let release = course.join("releases/abc123");
-        for exercise in ["a", "b", "c", "d"] {
-            fs::create_dir_all(release.join("exercises").join(exercise)).unwrap();
-        }
-        fs::create_dir_all(release.join("contests")).unwrap();
-        fs::write(release.join("contests/weekly.toml"), contest).unwrap();
-        course
-    }
+    use crate::fixtures::{CONTEST as VALID, course_with_contest as course};
+    use std::assert_matches;
 
     fn read(name: &str, text: &str) -> io::Result<Contest> {
         contest(&course(name, text), &"weekly".parse().unwrap())
