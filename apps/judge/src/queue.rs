@@ -199,7 +199,7 @@ mod tests {
 
     async fn schedule_sum(pool: &PgPool, closes_in: &str) {
         sqlx::query(
-            "INSERT INTO schedules VALUES ('log200', 'sum', now() - interval '1 day', now() + $1::interval)",
+            "INSERT INTO schedules (offering, activity, opens_at, closes_at) VALUES ('log200', 'sum', now() - interval '1 day', now() + $1::interval)",
         )
         .bind(closes_in)
         .execute(pool)

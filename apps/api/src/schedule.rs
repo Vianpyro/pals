@@ -7,7 +7,11 @@ use sqlx::PgPool;
 // An activity without a row gets no window: closed by default
 pub(super) async fn read(pool: &PgPool, offering: &Id, activity: &Id) -> sqlx::Result<Schedule> {
     let offering = sqlx::query!(
-        "SELECT opens_at, closes_at FROM schedules WHERE offering = $1::text AND activity = $2::text",
+        r#"
+            SELECT opens_at, closes_at FROM schedules
+            WHERE offering = $1::text AND activity = $2::text
+                AND group_id IS NULL AND account IS NULL
+        "#,
         offering.as_str(),
         activity.as_str()
     )

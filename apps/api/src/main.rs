@@ -458,7 +458,7 @@ mod tests {
 
     async fn schedule_sum(pool: &PgPool, opens_in: &str, closes_in: Option<&str>) {
         sqlx::query(
-            "INSERT INTO schedules VALUES ('log200', 'sum', now() + $1::interval, now() + $2::interval)",
+            "INSERT INTO schedules (offering, activity, opens_at, closes_at) VALUES ('log200', 'sum', now() + $1::interval, now() + $2::interval)",
         )
         .bind(opens_in)
         .bind(closes_in)
@@ -634,7 +634,7 @@ mod tests {
             .await
             .unwrap();
         sqlx::query(
-            "INSERT INTO schedules VALUES ('log200-h27', 'sum', now() - interval '1 hour', NULL)",
+            "INSERT INTO schedules (offering, activity, opens_at, closes_at) VALUES ('log200-h27', 'sum', now() - interval '1 hour', NULL)",
         )
         .execute(&pool)
         .await
@@ -1210,7 +1210,7 @@ mod tests {
     )]
     #[ignore = "needs PostgreSQL"]
     async fn catalog_lists_open_and_locked(pool: PgPool) {
-        sqlx::query("INSERT INTO schedules VALUES ('log200', 'sum', '2000-01-01T00:00:00Z', NULL)")
+        sqlx::query("INSERT INTO schedules (offering, activity, opens_at, closes_at) VALUES ('log200', 'sum', '2000-01-01T00:00:00Z', NULL)")
             .execute(&pool)
             .await
             .unwrap();
