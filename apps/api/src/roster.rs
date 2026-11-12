@@ -47,7 +47,7 @@ impl fmt::Display for RosterError {
 impl Error for RosterError {}
 
 pub(super) fn parse(csv: &str) -> Result<Vec<Enrollment>, RosterError> {
-    let csv = csv.strip_prefix('\u{feff}').unwrap_or(csv);
+    let csv = csv.trim_prefix('\u{feff}');
     let mut lines = csv.lines();
     if lines.next() != Some(HEADER) {
         return Err(RosterError::Header);
