@@ -135,7 +135,7 @@
       customType: "regex",
       description: "cargo auditable in the Rust Dockerfiles",
       managerFilePatterns: ["/^apps/.+/Dockerfile$/"],
-      matchStrings: ["cargo install (?<depName>cargo-[a-z-]+) --locked --version (?<currentValue>\\d+\\.\\d+\\.\\d+)"],
+      matchStrings: ["cargo install (?<depName>cargo-[a-z-]+) --version (?<currentValue>\\d+\\.\\d+\\.\\d+)"],
       datasourceTemplate: "crate",
     },
     {

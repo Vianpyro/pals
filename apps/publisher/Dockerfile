@@ -3,10 +3,10 @@
 # Built and attested by .github/workflows/images.yml from the repository root.
 # Bookworm's glibc (2.36) is older than Ubuntu 24.04's (2.39) and Debian 13's (2.41).
 # Same Rust as rust-toolchain.toml, copied below: if they differ, rustup fetches that one.
-FROM rust:1.99.1-slim-bookworm AS build
+FROM rust:1.100.0-slim-bookworm AS build
 # The dependency list goes into the binary (cargo auditable), so the scratch image below can be
 # scanned for vulnerable crates (images.yml, nightly.yml). Before COPY: rebuilt only with its version.
-RUN cargo install cargo-auditable --locked --version 0.7.7
+RUN cargo install cargo-auditable --version 0.7.7
 WORKDIR /src
 COPY . .
 RUN cargo auditable build --release --locked -p publisher

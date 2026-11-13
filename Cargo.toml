@@ -12,7 +12,7 @@ members = [
 [workspace.package]
 version = "0.3.0"
 edition = "2024"
-rust-version = "1.99.1"
+rust-version = "1.100.0"
 publish = false
 
 [workspace.dependencies]
@@ -35,3 +35,7 @@ unsafe_code = "forbid"
 [workspace.lints.clippy]
 unwrap_used = "deny"
 expect_used = "deny"
+
+[workspace.lints.cargo]
+unused_dependencies = "deny"
+unused_workspace_dependencies = "deny"
