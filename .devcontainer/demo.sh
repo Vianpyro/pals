@@ -31,8 +31,8 @@ ln -s "$PWD/examples/content" "$demo/content/log200"
 # DO UPDATE, not DO NOTHING: a row left closed would hide the exercise
 psql -q -v ON_ERROR_STOP=1 "$DATABASE_URL" -c "
   INSERT INTO offerings VALUES ('log200-a26', 'log200', 'a26') ON CONFLICT DO NOTHING;
-  INSERT INTO schedules VALUES ('log200-a26', 'sum', now() - interval '1 hour', NULL)
-  ON CONFLICT (offering, activity) DO UPDATE SET opens_at = excluded.opens_at, closes_at = NULL"
+  INSERT INTO schedules (offering, activity, opens_at, closes_at) VALUES ('log200-a26', 'sum', now() - interval '1 hour', NULL)
+  ON CONFLICT (offering, activity, group_id, account) DO UPDATE SET opens_at = excluded.opens_at, closes_at = NULL"
 # The offering opens only to the accounts on its roster (ADR-0012); admin1 is left off for the e2e tests
 printf 'account,role\netudiant1,student\netudiant2,student\nenseignant1,instructor\n' |
   "$bin/api" enroll log200-a26 >/dev/null

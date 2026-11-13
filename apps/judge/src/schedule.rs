@@ -10,7 +10,11 @@ pub async fn read_schedule(
     exercise: &str,
 ) -> sqlx::Result<Schedule> {
     let offering = sqlx::query!(
-        "SELECT opens_at, closes_at FROM schedules WHERE offering = $1::text AND activity = $2::text",
+        r#"
+            SELECT opens_at, closes_at FROM schedules
+            WHERE offering = $1::text AND activity = $2::text
+                AND group_id IS NULL AND account IS NULL
+        "#,
         offering,
         exercise
     )
@@ -40,7 +44,7 @@ mod tests {
     #[ignore = "needs PostgreSQL"]
     async fn judge_reads_the_offering_window(pool: PgPool) {
         sqlx::query(
-            "INSERT INTO schedules VALUES ('log200', 'sum', now() - interval '1 hour', NULL)",
+            "INSERT INTO schedules (offering, activity, opens_at, closes_at) VALUES ('log200', 'sum', now() - interval '1 hour', NULL)",
         )
         .execute(&pool)
         .await

@@ -13,6 +13,7 @@ BEGIN ATOMIC
         FROM public.drafts
         JOIN public.schedules ON schedules.offering = drafts.offering AND schedules.activity = drafts.exercise
         WHERE schedules.closes_at <= now() AND drafts.source <> ''
+            AND schedules.group_id IS NULL AND schedules.account IS NULL
         ON CONFLICT (author, offering, exercise) WHERE kind = 'final' DO NOTHING
         RETURNING 1
     )

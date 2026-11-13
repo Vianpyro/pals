@@ -62,7 +62,7 @@ docker exec log791-test-db sudo -u postgres psql -q -v ON_ERROR_STOP=1 log791 -c
   INSERT INTO offerings VALUES ('log200-a26', 'log200', 'a26');"
 ansible-playbook -i inventory/local enroll.yml -e offering=log200-a26 -e "roster=$work/roster.csv"
 docker exec log791-test-db sudo -u postgres psql -q -v ON_ERROR_STOP=1 log791 -c "
-  INSERT INTO schedules VALUES ('log200-a26', 'sum', now() - interval '1 hour', NULL);
+  INSERT INTO schedules (offering, activity, opens_at, closes_at) VALUES ('log200-a26', 'sum', now() - interval '1 hour', NULL);
   INSERT INTO sessions (token_hash, account) VALUES (sha256('deploy-test'::bytea), 'etudiant1');"
 
 echo "Submitting through nginx"

@@ -71,7 +71,7 @@ ln -s "$PWD/examples/content" "$work/content/log200"
 "$bin/publisher" examples/content "$work/courses/log200" >/dev/null
 DATABASE_URL=$database "$bin/api" migrate
 sql "INSERT INTO offerings VALUES ('log200-a26', 'log200', 'a26')"
-sql "INSERT INTO schedules VALUES ('log200-a26', 'sum', now() - interval '1 hour', NULL)"
+sql "INSERT INTO schedules (offering, activity, opens_at, closes_at) VALUES ('log200-a26', 'sum', now() - interval '1 hour', NULL)"
 # The offering opens only to the accounts on its roster (ADR-0012); not seq -f %g, which writes 1e+06
 { echo account,role; seq "$students" | sed 's/.*/student&,student/'; } |
   DATABASE_URL=$database "$bin/api" enroll log200-a26 >/dev/null
