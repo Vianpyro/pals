@@ -40,7 +40,7 @@ pub(super) async fn open_exercise(
 ) -> Result<PathBuf, StatusCode> {
     let course_dir = course_dir(pool, courses, offering, account).await?;
 
-    let schedule = schedule::read(pool, offering, exercise)
+    let schedule = schedule::read(pool, offering, exercise, account)
         .await
         .map_err(|error| {
             eprintln!("api: schedule: {error}");

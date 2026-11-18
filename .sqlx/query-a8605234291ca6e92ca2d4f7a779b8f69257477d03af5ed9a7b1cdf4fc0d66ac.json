@@ -1,0 +1,56 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                account IS NOT NULL as \"extension!\",\n                group_id IS NOT NULL AS \"group!\",\n                opens_at,\n                closes_at\n            FROM schedules\n            WHERE offering = $1::text AND activity = $2::text\n                AND (\n                    account = $3::text\n                    OR group_id = (\n                        SELECT group_id FROM group_members\n                        WHERE offering = $1::text AND account = $3::text\n                    )\n                    OR (group_id IS NULL AND account IS NULL)\n                )\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "extension!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "group!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 2,
+        "name": "opens_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "schedules",
+            "name": "opens_at"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "closes_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "schedules",
+            "name": "closes_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      false,
+      true
+    ]
+  },
+  "hash": "a8605234291ca6e92ca2d4f7a779b8f69257477d03af5ed9a7b1cdf4fc0d66ac"
+}

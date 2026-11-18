@@ -25,7 +25,7 @@ pub(super) async fn catalog(
 
     let mut entries = Vec::with_capacity(ids.len());
     for id in ids {
-        let schedule = schedule::read(&pool, &offering, &id)
+        let schedule = schedule::read(&pool, &offering, &id, &account)
             .await
             .map_err(|error| {
                 eprintln!("api: catalog: {error}");
