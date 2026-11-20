@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # Measures the demo page with Lighthouse on one screen profile and holds it to the budgets of
-# tests/lighthouse/budgets.mjs: builds the demo, installs the tool from its own lockfile, checks its
-# verdict logic, then runs the student's flow (flow.mjs). Run by the lighthouse job of ci.yml, and by
-# hand from the dev container, after npm ci at the root.
+# tests/lighthouse/budgets.mjs. Run by the lighthouse job of ci.yml, and by hand from the dev
+# container, after npm ci at the root.
 # Usage: bash tests/lighthouse/run.sh [laptop|lab]    LH_RUNS=1 for a quicker look; the reports go
 #        to $LH_OUT (a temporary folder by default), one HTML file per run.
 set -euo pipefail

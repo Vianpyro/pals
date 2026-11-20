@@ -27,7 +27,7 @@ if (!env.CHROME_PATH) fail("CHROME_PATH must name a Chrome or Chromium");
 
 // The demo's own account, printed on the page itself (apps/web/vite.demo.config.js)
 const ACCOUNT = { id: "etudiant1", password: "log791-dev" };
-// Puppeteer's ARIA selectors: what a screen reader would name, as the e2e journeys find them
+// By accessible name and role, as the e2e journeys find them
 const aria = (label, role) => `::-p-aria([name="${label}"][role="${role}"])`;
 
 const settings = {
@@ -36,7 +36,7 @@ const settings = {
     throttlingMethod: "devtools",
     throttling: THROTTLING,
 };
-// A timespan has no accessibility audits: it sees what changed, not the page. SEO is for search engines.
+// Lighthouse refuses accessibility in a timespan. No SEO: nothing here is meant to be indexed.
 const whole = { onlyCategories: ["performance", "accessibility", "best-practices"] };
 const action = { onlyCategories: ["performance", "best-practices"] };
 

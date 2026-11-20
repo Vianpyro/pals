@@ -2,7 +2,7 @@
 # runs from this image: the Ansible judge role copies /judge and /packs onto the judge VMs, where
 # systemd runs it and it starts each sandbox with Docker.
 # Built and attested by .github/workflows/images.yml from the repository root.
-# Bookworm's glibc (2.36) is older than Ubuntu 26.04's, the LTS of the ÉTS VMs.
+# Bookworm's glibc (2.36) is older than Ubuntu 26.04's, the ÉTS VMs' LTS: the binary runs there.
 # Same Rust as rust-toolchain.toml, copied below: if they differ, rustup fetches that one.
 FROM rust:1.100.0-slim-bookworm AS build
 # The dependency list goes into the binary (cargo auditable), so the scratch image below can be

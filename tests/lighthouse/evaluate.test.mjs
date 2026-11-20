@@ -1,4 +1,3 @@
-// evaluate.mjs on hand-written flow results: no browser, so it runs before every measurement.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { annotations, judge, measure, median, report, show } from "./evaluate.mjs";

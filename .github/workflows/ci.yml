@@ -331,7 +331,6 @@ jobs:
     permissions:
       contents: read
     strategy:
-      # One screen failing should not hide the other
       fail-fast: false
       matrix:
         profile: [laptop, lab]
@@ -344,14 +343,12 @@ jobs:
         with:
           persist-credentials: false
 
-      # The Node of package.json's engines. No cache: npm ci checks every package against the lockfile.
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: package.json
           package-manager-cache: false
 
-      # The Chromium that @playwright/test pins, as for the e2e journeys; no headless shell, which
-      # Lighthouse does not use
+      # No headless shell: Lighthouse drives the full Chromium
       - name: Install
         run: |
           npm ci --no-audit --no-fund
@@ -364,8 +361,7 @@ jobs:
           LH_OUT: ${{ runner.temp }}/lighthouse
         run: bash tests/lighthouse/run.sh "$PROFILE"
 
-      # always(): the reports are most wanted on the run that just failed. One HTML file per run,
-      # every step of the flow in it.
+      # always(): the reports matter most when a budget breaks
       - if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -375,7 +371,7 @@ jobs:
           if-no-files-found: warn
 
   # A real deployment with site.yml onto Ubuntu containers, twice: the second run changes nothing.
-  # On the LTS of the ÉTS VMs; another one is a matrix entry away (bash tests/deploy/run.sh 24.04).
+  # On the LTS of the ÉTS VMs.
   deploy:
     needs: changes
     if: needs.changes.outputs.deploy == 'true'

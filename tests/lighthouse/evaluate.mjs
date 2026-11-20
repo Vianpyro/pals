@@ -1,6 +1,5 @@
-// From Lighthouse's flow results to a verdict: what each step measured, the median over the runs,
-// each budget of budgets.mjs held or not, and the report a reviewer reads. No I/O here, so
-// evaluate.test.mjs checks all of it without a browser.
+// From Lighthouse's flow results to a verdict and its report. No I/O here: evaluate.test.mjs
+// checks all of it without a browser.
 
 const CATEGORIES = new Set(["performance", "accessibility", "best-practices", "seo"]);
 
@@ -15,7 +14,7 @@ export function measure(flowResult) {
         const failing = {};
         for (const [id, category] of Object.entries(lhr.categories)) {
             if (typeof category.score === "number") values[id] = category.score;
-            // What brought a score under 1: the reviewer's first question
+            // The weighted audits that kept the score under 1
             failing[id] = category.auditRefs
                 .filter((ref) => ref.weight > 0)
                 .map((ref) => lhr.audits[ref.id])
@@ -25,7 +24,7 @@ export function measure(flowResult) {
         for (const [id, audit] of Object.entries(lhr.audits)) {
             if (typeof audit.numericValue === "number") values[id] = audit.numericValue;
         }
-        // What moved, worst first: the element to look at when the CLS budget breaks
+        // The elements that moved, worst first
         failing["cumulative-layout-shift"] = (lhr.audits["layout-shifts"]?.details?.items ?? [])
             .filter((item) => item.node?.selector)
             .sort((a, b) => b.score - a.score)
