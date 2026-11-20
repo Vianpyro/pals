@@ -224,10 +224,10 @@ jobs:
       - name: Reference solutions
         run: bash spikes/build-or-reuse/check.sh
 
-  # Mutants the tests do not kill, in the lines a pull request changed. A report, not a gate.
+  # Mutants the tests do not kill, in the lines a push changes. A report, not a gate.
   mutants:
     needs: changes
-    if: github.event_name == 'pull_request' && needs.changes.outputs.rust == 'true'
+    if: needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
@@ -254,8 +254,13 @@ jobs:
 
       - name: Mutants
         env:
-          BASE: ${{ github.event.pull_request.base.sha }}
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: |
+          # No base on a manual run, and the old head of a force-push is not fetched: nothing to diff
+          if ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            echo "### Mutants: no base commit to compare with" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
           git diff "$BASE...HEAD" -- '*.rs' > "$RUNNER_TEMP/diff"
           # Exits non-zero when a mutant survives: the summary below is the report
           cargo mutants --in-diff "$RUNNER_TEMP/diff" --test-tool nextest --no-shuffle || true
