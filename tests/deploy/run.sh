@@ -2,12 +2,13 @@
 # Deploys the platform with infrastructure/ansible/site.yml onto three Ubuntu containers, checks
 # that a second run changes nothing, enrolls a roster with enroll.yml, then has a submission
 # judged through nginx. Inside the dev container; the containers are deleted at the end.
-# Usage: bash tests/deploy/run.sh [24.04|26.04]    KEEP=1 leaves the containers up to look into them
+# Usage: bash tests/deploy/run.sh [UBUNTU]    26.04 by default, the LTS of the ÉTS VMs
+#        KEEP=1 leaves the containers up to look into them
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 root=$PWD
 
-ubuntu=${1:-24.04}
+ubuntu=${1:-26.04}
 network=log791-test
 hosts=(log791-test-web log791-test-judge log791-test-db)
 # Not /tmp: a file the containers' root leaves there would block the next run (dev container)

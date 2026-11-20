@@ -1,6 +1,6 @@
 # A stand-in for an ÉTS VM in tests/deploy/run.sh: Ubuntu booted by systemd, with what Ansible
 # needs to reach it and nothing the roles are supposed to install.
-ARG UBUNTU=24.04
+ARG UBUNTU=26.04
 FROM ubuntu:${UBUNTU}
 
 RUN apt-get update \

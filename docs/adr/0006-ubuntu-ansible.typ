@@ -7,7 +7,7 @@
 
 === Context
 
-The institution provides a VM running #ext("ubuntu")[Ubuntu LTS]; #ext("nixos")[NixOS] (#adr("0003")) is not retained. The infrastructure must nevertheless be rebuildable from the repository, and the #ext("ctester")[CTester] failures caused by configuration spread across several repositories must not happen again.
+The institution provides a VM running #ext("ubuntu")[Ubuntu LTS], 26.04 as announced by the ÉTS system administrator in November 2026; #ext("nixos")[NixOS] (#adr("0003")) is not retained. The infrastructure must nevertheless be rebuildable from the repository, and the #ext("ctester")[CTester] failures caused by configuration spread across several repositories must not happen again.
 
 === Options considered
 

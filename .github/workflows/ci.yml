@@ -315,7 +315,7 @@ jobs:
           runCmd: bash tests/ci/integration.sh
 
   # A real deployment with site.yml onto Ubuntu containers, twice: the second run changes nothing.
-  # The LTS the ÉTS VMs run today on pull requests, both on main and nightly (nightly.yml).
+  # On the LTS of the ÉTS VMs; another one is a matrix entry away (bash tests/deploy/run.sh 24.04).
   deploy:
     needs: changes
     if: needs.changes.outputs.deploy == 'true'
@@ -326,7 +326,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        ubuntu: ${{ fromJSON(github.event_name == 'pull_request' && '["24.04"]' || '["24.04", "26.04"]') }}
+        ubuntu: ["26.04"]
     steps:
       # No harden-runner here: its DNS proxy leaves the dev container's compose network unable to
       # resolve any name (index.crates.io), and the dev container then fails to start.

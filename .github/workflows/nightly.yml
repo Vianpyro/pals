@@ -78,7 +78,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        ubuntu: ["24.04", "26.04"]
+        ubuntu: ["26.04"]
     steps:
       # No harden-runner here: its DNS proxy leaves the dev container's compose network unable to
       # resolve any name (index.crates.io), and the dev container then fails to start.

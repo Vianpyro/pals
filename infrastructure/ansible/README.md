@@ -75,7 +75,7 @@ The API migrates the database before it restarts. The judges restart afterwards:
 
 ## Testing a change
 
-`bash tests/deploy/run.sh [24.04|26.04]` checks a change, from the dev container:
+`bash tests/deploy/run.sh [UBUNTU]` (26.04 by default, the LTS of the ÉTS VMs) checks a change, from the dev container:
 1. It builds the images.
 2. It deploys `site.yml` twice onto three Ubuntu containers, and fails if the second run changes anything.
 3. It enrolls a roster with `enroll.yml`.
@@ -84,4 +84,4 @@ The API migrates the database before it restarts. The judges restart afterwards:
 6. It fails if the `systemd-analyze security` exposure of the API or the judge gets worse.
 7. It runs `drift.sh`, `pre-exam.yml` and `post-exam.yml`.
 
-CI runs it on Ubuntu 24.04 when a change concerns it, and nightly on 24.04 and 26.04.
+CI runs it on Ubuntu 26.04 when a change concerns it, and nightly.

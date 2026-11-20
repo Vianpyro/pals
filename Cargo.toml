@@ -39,3 +39,8 @@ expect_used = "deny"
 [workspace.lints.cargo]
 unused_dependencies = "deny"
 unused_workspace_dependencies = "deny"
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+strip = "debuginfo"
