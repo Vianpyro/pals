@@ -12,8 +12,9 @@ unmaintained = "workspace"
 yanked = "deny"
 
 [licenses]
-# Permissive licenses, and MPL-2.0 (file-level copyleft). The same list as dependency-review in
-# ci.yml, which covers npm. A new license is a decision: add it here with the crate that needs it.
+# Permissive licenses, and MPL-2.0 (file-level copyleft). dependency-review in ci.yml, which covers
+# npm, has the same list and two permissive licenses only npm packages need. A new license is a
+# decision: add it here with the crate that needs it.
 allow = [
   "MIT",
   "Apache-2.0",

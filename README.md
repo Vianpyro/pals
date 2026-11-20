@@ -27,6 +27,7 @@ Common commands are VS Code tasks (**Tasks: Run Task**):
 | `web: dev` | The page with hot reload (**Ports** → `5173`), API proxied, no CSP |
 | `web: check` | Svelte check, tests, build, size budget and nginx's headers |
 | `web: e2e` | The student's journeys in Chromium and WebKit, with the demo running |
+| `web: lighthouse` | The demo page through Lighthouse: layout shift, accessibility and best practices held to their budgets (`tests/lighthouse`) |
 | `architecture: check` | Check component boundaries in the crate graph, as CI does |
 | `env: check` | Check that every local service answers |
 | `docs: build site` | Build every document into `_site/` |

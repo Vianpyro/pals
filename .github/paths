@@ -49,6 +49,17 @@ integration tests/*
 integration .devcontainer/*
 integration infrastructure/ansible/roles/nginx/files/*
 
+# The demo page as a student goes through it, measured by Lighthouse (tests/lighthouse): what the
+# demo is built from, and the tool's own lockfile
+web apps/web/*
+web packages/ui/*
+web packages/contracts/*
+web examples/content/*
+web package.json
+web package-lock.json
+web .npmrc
+web tests/lighthouse/*
+
 # A real deployment onto Ubuntu containers: slow, so only for what it deploys
 deploy infrastructure/*
 deploy apps/*

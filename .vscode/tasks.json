@@ -49,6 +49,13 @@
       "problemMatcher": []
     },
     {
+      "label": "web: lighthouse",
+      "detail": "The demo page through Lighthouse on the laptop screen, held to its budgets (tests/lighthouse)",
+      "type": "shell",
+      "command": "bash tests/lighthouse/run.sh laptop",
+      "problemMatcher": []
+    },
+    {
       "label": "db: prepare queries",
       "detail": "Refresh .sqlx/ after changing a query! macro; commit the result",
       "type": "shell",

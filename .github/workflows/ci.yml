@@ -29,6 +29,7 @@ jobs:
       deploy: ${{ steps.areas.outputs.deploy }}
       ansible: ${{ steps.areas.outputs.ansible }}
       docs: ${{ steps.areas.outputs.docs }}
+      web: ${{ steps.areas.outputs.web }}
       apps: ${{ steps.apps.outputs.apps }}
     steps:
       - uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
@@ -319,6 +320,60 @@ jobs:
           push: never
           runCmd: bash tests/ci/integration.sh
 
+  # The demo page as a student goes through it, on two screens, held to tests/lighthouse/budgets.mjs:
+  # layout shift, accessibility and best practices fail the job, timings only warn. The page's unit
+  # checks run in its image (apps/web/Dockerfile), its journeys in integration.
+  lighthouse:
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    strategy:
+      # One screen failing should not hide the other
+      fail-fast: false
+      matrix:
+        profile: [laptop, lab]
+    steps:
+      - uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The Node of package.json's engines. No cache: npm ci checks every package against the lockfile.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: package.json
+          package-manager-cache: false
+
+      # The Chromium that @playwright/test pins, as for the e2e journeys; no headless shell, which
+      # Lighthouse does not use
+      - name: Install
+        run: |
+          npm ci --no-audit --no-fund
+          npm audit signatures
+          npx playwright install --with-deps --no-shell chromium
+
+      - name: Measure
+        env:
+          PROFILE: ${{ matrix.profile }}
+          LH_OUT: ${{ runner.temp }}/lighthouse
+        run: bash tests/lighthouse/run.sh "$PROFILE"
+
+      # always(): the reports are most wanted on the run that just failed. One HTML file per run,
+      # every step of the flow in it.
+      - if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: lighthouse-${{ matrix.profile }}
+          path: ${{ runner.temp }}/lighthouse
+          retention-days: 7
+          if-no-files-found: warn
+
   # A real deployment with site.yml onto Ubuntu containers, twice: the second run changes nothing.
   # On the LTS of the ÉTS VMs; another one is a matrix entry away (bash tests/deploy/run.sh 24.04).
   deploy:
@@ -401,15 +456,20 @@ jobs:
       - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
         with:
           fail-on-severity: high
-          # The same list as deny.toml, for npm too
+          # The list of deny.toml, for npm too, and two permissive licenses only npm packages need:
+          # BlueOak-1.0.0 (glob, minimatch, lru-cache...) and 0BSD (tslib), both under Lighthouse
+          # (tests/lighthouse), which no page or image ships
           allow-licenses: >-
             MIT, Apache-2.0, Apache-2.0 WITH LLVM-exception, BSD-2-Clause, BSD-3-Clause,
-            ISC, Zlib, Unicode-3.0, BSL-1.0, CC0-1.0, MPL-2.0
+            ISC, Zlib, Unicode-3.0, BSL-1.0, CC0-1.0, MPL-2.0, BlueOak-1.0.0, 0BSD
+          # FSL-1.1 is source-available, not open source. Under Lighthouse's error reporter
+          # (@sentry/node), which stays off unless --enable-error-reporting: never loaded here.
+          allow-dependencies-licenses: pkg:npm/sentry
 
   # The only required check. Skipped jobs pass: their area did not change.
   gate:
     if: always()
-    needs: [changes, lint, policy, rust, images, integration, deploy, ansible, docs, dependency-review]
+    needs: [changes, lint, policy, rust, images, integration, lighthouse, deploy, ansible, docs, dependency-review]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions: {}

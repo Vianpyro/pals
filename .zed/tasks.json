@@ -28,6 +28,10 @@
     "command": "npm run build -w apps/web && npm run e2e"
   },
   {
+    "label": "web: lighthouse",
+    "command": "bash tests/lighthouse/run.sh laptop"
+  },
+  {
     "label": "db: prepare queries",
     "command": "cargo sqlx prepare --workspace -- --all-targets"
   },
